@@ -1,0 +1,193 @@
+.investments-page {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.portfolio-summary {
+    margin-bottom: 2rem;
+}
+
+.portfolio-value-card {
+    padding: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(30, 31, 41, 1) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.portfolio-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.portfolio-icon {
+    width: 56px;
+    height: 56px;
+    background: var(--primary-color, #6366f1);
+    color: white;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.portfolio-label {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+}
+
+.portfolio-total {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.portfolio-trend {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.portfolio-trend.positive {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+}
+
+.chart-card {
+    margin-bottom: 2rem;
+}
+
+.chart-tabs {
+    display: flex;
+    gap: 0.5rem;
+    background: var(--background, #1e1f29);
+    padding: 0.25rem;
+    border-radius: 8px;
+}
+
+.tab {
+    background: transparent;
+    color: var(--text-secondary);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab:hover {
+    color: var(--text-primary);
+}
+
+.tab.active {
+    background: var(--surface-light, #2a2b36);
+    color: var(--text-primary);
+}
+
+.section-title {
+    color: var(--text-primary);
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.holdings-card {
+    padding: 0;
+    overflow: hidden;
+}
+
+.holdings-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.holdings-table th {
+    padding: 1rem 1.5rem;
+    text-align: left;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-color, #3a3b46);
+}
+
+.holdings-table td {
+    padding: 1rem 1.5rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-color, #3a3b46);
+}
+
+.holdings-table tr:last-child td {
+    border-bottom: none;
+}
+
+.holdings-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.asset-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.asset-symbol {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.asset-name {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.asset-price {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.asset-change {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+.asset-change.positive {
+    color: #10b981;
+}
+
+.asset-change.negative {
+    color: #ef4444;
+}
+
+.asset-shares {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.asset-total-value {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 1.125rem;
+}

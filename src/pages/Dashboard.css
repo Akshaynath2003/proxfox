@@ -1,0 +1,183 @@
+.dashboard-page {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.page-header h1 {
+    margin-bottom: 8px;
+    letter-spacing: -1px;
+}
+
+.subtitle {
+    color: var(--color-text-secondary);
+    font-size: 16px;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 24px;
+}
+
+.kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.kpi-title {
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.icon-wrapper {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-wrapper.accent {
+    background: rgba(30, 144, 255, 0.1);
+    color: var(--color-accent);
+}
+
+.icon-wrapper.income {
+    background: rgba(18, 183, 106, 0.1);
+    color: var(--color-success);
+}
+
+.icon-wrapper.expense {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-danger);
+}
+
+.kpi-value {
+    font-size: 32px;
+    font-weight: 700;
+    font-family: var(--font-secondary);
+    margin-bottom: 12px;
+}
+
+.kpi-trend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.kpi-trend.positive {
+    color: var(--color-success);
+}
+
+.kpi-trend.negative {
+    color: var(--color-danger);
+}
+
+.health-card {
+    background: linear-gradient(135deg, var(--color-accent), var(--color-success));
+    color: #FFFFFF;
+}
+
+.health-card .kpi-title,
+.health-card .health-max {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.health-icon {
+    opacity: 0.9;
+}
+
+.health-score {
+    font-family: var(--font-secondary);
+    margin-bottom: 8px;
+}
+
+.score-value {
+    font-size: 40px;
+    font-weight: 700;
+}
+
+.score-max {
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.health-status {
+    font-weight: 600;
+    font-size: 16px;
+}
+
+/* Charts Layout */
+.charts-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 1024px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.chart-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-card h3 {
+    margin-bottom: 24px;
+}
+
+.chart-container {
+    height: 300px;
+    width: 100%;
+}
+
+.legend {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.legend-name {
+    color: var(--color-text-secondary);
+    flex: 1;
+}
+
+.legend-val {
+    font-weight: 600;
+}

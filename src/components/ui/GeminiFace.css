@@ -1,0 +1,153 @@
+.gemini-face-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    margin: 0 auto;
+}
+
+/* Base glowing empty state */
+.gemini-aura {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 180deg at 50% 50%, var(--color-accent) 0deg, var(--color-success) 180deg, var(--color-accent) 360deg);
+    opacity: 0.2;
+    filter: blur(20px);
+    transition: all 0.5s ease;
+    animation: rotate 10s linear infinite;
+}
+
+.gemini-core {
+    position: relative;
+    width: 80%;
+    height: 80%;
+    background: var(--color-bg-dark);
+    /* Keeps it cool in dark mode */
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 0 30px rgba(30, 144, 255, 0.2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15%;
+    overflow: hidden;
+    z-index: 2;
+    transition: all 0.3s ease;
+}
+
+[data-theme='light'] .gemini-core {
+    background: #FFFFFF;
+    border: 2px solid rgba(0, 0, 0, 0.05);
+    box-shadow: inset 0 0 30px rgba(30, 144, 255, 0.1);
+}
+
+.gemini-eye {
+    width: 15%;
+    height: 20%;
+    background: var(--color-accent);
+    border-radius: 50px;
+    box-shadow: 0 0 10px var(--color-accent);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: blink 4s infinite;
+}
+
+/* States */
+.gemini-face-container.idle .gemini-aura {
+    opacity: 0.3;
+}
+
+.gemini-face-container.thinking .gemini-aura {
+    opacity: 0.8;
+    animation: rotate 2s linear infinite, pulse 1.5s ease-in-out infinite;
+}
+
+.gemini-face-container.thinking .gemini-eye {
+    height: 8%;
+    transform: translateY(-20%);
+}
+
+.gemini-face-container.listening .gemini-aura {
+    opacity: 0.6;
+    background: conic-gradient(from 180deg at 50% 50%, var(--color-success) 0deg, var(--color-accent) 180deg, var(--color-success) 360deg);
+    animation: rotate 4s linear infinite, pulse 2s ease-in-out infinite;
+}
+
+.gemini-face-container.listening .gemini-eye {
+    transform: scale(1.2);
+    background: var(--color-success);
+    box-shadow: 0 0 15px var(--color-success);
+}
+
+.gemini-face-container.speaking .gemini-aura {
+    opacity: 0.5;
+    animation: rotate 6s linear infinite;
+}
+
+.gemini-mouth {
+    position: absolute;
+    bottom: 20%;
+    width: 30%;
+    height: 4%;
+    background: var(--color-accent);
+    border-radius: 10px;
+    box-shadow: 0 0 10px var(--color-accent);
+    animation: talk 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.95);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scale(1.05);
+        opacity: 0.9;
+    }
+
+    100% {
+        transform: scale(0.95);
+        opacity: 0.5;
+    }
+}
+
+@keyframes blink {
+
+    0%,
+    96%,
+    98% {
+        transform: scaleY(1);
+    }
+
+    97% {
+        transform: scaleY(0.1);
+    }
+
+    100% {
+        transform: scaleY(1);
+    }
+}
+
+@keyframes talk {
+    from {
+        transform: scaleY(0.5);
+        width: 25%;
+    }
+
+    to {
+        transform: scaleY(2);
+        width: 35%;
+    }
+}

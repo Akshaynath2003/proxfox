@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600;700&display=swap');
+
+:root {
+  /* Brand Colors */
+  --color-primary: #0B1E2D;
+  --color-accent: #1E90FF;
+  --color-accent-hover: #1871C9;
+  /* 8% darker roughly */
+  --color-success: #12B76A;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-danger-hover: #D93838;
+
+  --color-bg-light: #F8FAFC;
+  --color-bg-dark: #0F172A;
+
+  --color-card-dark: #1E293B;
+
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+
+  --color-text-light: #F1F5F9;
+  --color-text-muted: #94A3B8;
+
+  /* Typography */
+  --font-primary: 'Inter', system-ui, sans-serif;
+  --font-secondary: 'Poppins', system-ui, sans-serif;
+
+  /* UI Rules */
+  --radius-card: 16px;
+  --radius-element: 8px;
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.05);
+
+  --transition-fast: 200ms ease-in-out;
+  --transition-normal: 300ms ease-in-out;
+}
+
+/* Dark Mode Variables */
+[data-theme='dark'] {
+  --color-bg: var(--color-bg-dark);
+  --color-text-primary: var(--color-text-light);
+  --color-text-secondary: var(--color-text-muted);
+  --color-card: var(--color-card-dark);
+}
+
+[data-theme='light'] {
+  --color-bg: var(--color-bg-light);
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-card: #FFFFFF;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-primary);
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  letter-spacing: -0.2px;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-secondary);
+  color: var(--color-text-primary);
+}
+
+h1 {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+body {
+  font-size: 16px;
+  font-weight: 400;
+}
+
+small {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+/* Glassmorphism Classes */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+[data-theme='dark'] .glass {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}

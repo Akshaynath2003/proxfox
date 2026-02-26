@@ -1,0 +1,73 @@
+.proxfox-btn {
+    font-family: var(--font-primary);
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-element);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all var(--transition-fast);
+    outline: none;
+}
+
+.proxfox-btn:hover {
+    transform: scale(1.02);
+}
+
+.proxfox-btn:active {
+    transform: scale(0.98);
+}
+
+.proxfox-btn-primary {
+    background-color: var(--color-accent);
+    color: #FFFFFF;
+}
+
+.proxfox-btn-primary:hover {
+    background-color: var(--color-accent-hover);
+}
+
+.proxfox-btn-secondary {
+    background-color: transparent;
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-text-muted);
+}
+
+.proxfox-btn-secondary:hover {
+    background-color: rgba(148, 163, 184, 0.1);
+    border-color: var(--color-text-primary);
+}
+
+.proxfox-btn-danger {
+    background-color: var(--color-danger);
+    color: #FFFFFF;
+}
+
+.proxfox-btn-danger:hover {
+    background-color: var(--color-danger-hover);
+}
+
+.proxfox-btn-sm {
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.proxfox-btn-md {
+    padding: 12px 24px;
+    font-size: 16px;
+    min-height: 44px;
+    /* Touch friendly */
+}
+
+.proxfox-btn-lg {
+    padding: 16px 32px;
+    font-size: 18px;
+}
+
+.proxfox-btn[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}

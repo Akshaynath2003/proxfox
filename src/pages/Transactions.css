@@ -1,0 +1,238 @@
+.transactions-page {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.page-title {
+    color: var(--text-primary);
+    font-size: 1.875rem;
+    font-weight: bold;
+}
+
+.page-subtitle {
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.btn-secondary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--surface-light, #2a2b36);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color, #3a3b46);
+    padding: 0.625rem 1rem;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+    background: var(--border-color, #3a3b46);
+}
+
+.transactions-card {
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.transactions-toolbar {
+    display: flex;
+    justify-content: space-between;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color, #3a3b46);
+    gap: 1rem;
+}
+
+.search-wrapper {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.625rem 1rem 0.625rem 2.75rem;
+    background: var(--background, #1e1f29);
+    border: 1px solid var(--border-color, #3a3b46);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary-color, #6366f1);
+}
+
+.btn-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color, #3a3b46);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-filter:hover {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.transactions-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.transactions-table th {
+    padding: 1rem 1.5rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-color, #3a3b46);
+}
+
+.transactions-table td {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color, #3a3b46);
+    vertical-align: middle;
+}
+
+.transactions-table tr:last-child td {
+    border-bottom: none;
+}
+
+.transactions-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.tx-description {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.tx-icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+.tx-icon-wrapper.expense {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.tx-icon-wrapper.income {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+}
+
+.tx-name {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.tx-category {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    padding: 0.25rem 0.75rem;
+    background: var(--surface-light, #2a2b36);
+    border-radius: 999px;
+}
+
+.tx-date {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.tx-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    display: inline-block;
+}
+
+.status-completed {
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+}
+
+.status-pending {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+}
+
+.tx-amount {
+    font-weight: 600;
+}
+
+.tx-amount.income {
+    color: #22c55e;
+}
+
+.tx-amount.expense {
+    color: var(--text-primary);
+}
+
+.text-right {
+    text-align: right;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+}
+
+.btn-icon:hover {
+    color: var(--text-primary);
+    background: var(--surface-light, #2a2b36);
+}
+
+.empty-state {
+    padding: 3rem !important;
+    color: var(--text-secondary);
+}
