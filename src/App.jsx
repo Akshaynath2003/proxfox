@@ -9,6 +9,7 @@ import { Investments } from './pages/Investments';
 import { Settings } from './pages/Settings';
 import { Admin } from './pages/Admin';
 import { Auth } from './pages/Auth';
+import { Analytics as VercelAnalytics } from '@vercel/analytics/react';
 
 // Protected Route Component to restrict access
 const ProtectedRoute = ({ children, requireAdmin }) => {
@@ -77,6 +78,7 @@ function App() {
             <Route path="*" element={<Dashboard />} />
           </Route>
         </Routes>
+        <VercelAnalytics />
       </BrowserRouter>
     </AuthProvider>
   );
