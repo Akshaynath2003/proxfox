@@ -10,7 +10,7 @@ export function Auth() {
     const [formData, setFormData] = useState({
         username: '',
         email: '',
-        phone: '',
+        phoneNumber: '',
         password: ''
     });
     const [isLoading, setIsLoading] = useState(false);
@@ -35,12 +35,12 @@ export function Auth() {
         try {
             let result;
             if (isLogin) {
-                if (!formData.username || !formData.password) {
-                    throw new Error('Please enter both username and password');
+                if (!formData.email || !formData.password) {
+                    throw new Error('Please enter both email and password');
                 }
-                result = await login(formData.username, formData.password);
+                result = await login(formData.email, formData.password);
             } else {
-                if (!formData.username || !formData.email || !formData.phone || !formData.password) {
+                if (!formData.username || !formData.email || !formData.phoneNumber || !formData.password) {
                     throw new Error('Please fill in all fields');
                 }
                 result = await register(formData);
@@ -53,6 +53,8 @@ export function Auth() {
                 } else {
                     navigate('/');
                 }
+            } else {
+                throw new Error(result.error || 'Authentication failed. Please try again.');
             }
         } catch (err) {
             setError(err.message || 'Authentication failed. Please try again.');
@@ -67,7 +69,7 @@ export function Auth() {
         setFormData({
             username: '',
             email: '',
-            phone: '',
+            phoneNumber: '',
             password: ''
         });
     };
@@ -94,19 +96,18 @@ export function Auth() {
 
                 <form onSubmit={handleSubmit} className="auth-form">
                     <div className="form-group">
-                        <label>Username</label>
+                        <label>{isLogin ? 'Email Address' : 'Username'}</label>
                         <div className="input-with-icon">
-                            <User size={18} className="input-icon" />
+                            {isLogin ? <Mail size={18} className="input-icon" /> : <User size={18} className="input-icon" />}
                             <input
-                                type="text"
-                                name="username"
-                                value={formData.username}
+                                type={isLogin ? "email" : "text"}
+                                name={isLogin ? "email" : "username"}
+                                value={isLogin ? formData.email : formData.username}
                                 onChange={handleInputChange}
-                                placeholder={isLogin ? "Enter any username" : "Choose a username"}
+                                placeholder={isLogin ? "name@example.com" : "Choose a username"}
                                 className="form-input icon-padding"
                             />
                         </div>
-                        {isLogin && <small className="helper-text">Tip: Use "admin" to log in as an administrator.</small>}
                     </div>
 
                     {!isLogin && (
@@ -132,8 +133,8 @@ export function Auth() {
                                     <Phone size={18} className="input-icon" />
                                     <input
                                         type="tel"
-                                        name="phone"
-                                        value={formData.phone}
+                                        name="phoneNumber"
+                                        value={formData.phoneNumber}
                                         onChange={handleInputChange}
                                         placeholder="+1 (555) 000-0000"
                                         className="form-input icon-padding"

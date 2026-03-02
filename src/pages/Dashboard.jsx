@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../components/ui/Card';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 import './Dashboard.css';
 
+// Placeholder data for charts until we aggregate it dynamically
 const EXPENSE_DATA = [
     { name: 'Mon', income: 4000, expenses: 2400 },
     { name: 'Tue', income: 3000, expenses: 1398 },
@@ -23,6 +24,31 @@ const CATEGORY_DATA = [
 const COLORS = ['#1E90FF', '#12B76A', '#F59E0B', '#EF4444'];
 
 export function Dashboard() {
+    const [summary, setSummary] = useState({ totalIncome: 0, totalExpense: 0, totalInvestment: 0, balance: 0 });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchSummary = async () => {
+            try {
+                const token = localStorage.getItem('proxfox_user') ? JSON.parse(localStorage.getItem('proxfox_user')).token : null;
+                const response = await fetch('/api/finance/summary', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setSummary(data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch finance summary", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSummary();
+    }, []);
     return (
         <div className="dashboard-page">
             <header className="page-header">
@@ -39,34 +65,34 @@ export function Dashboard() {
                         <span className="kpi-title">Total Balance</span>
                         <WalletIcon />
                     </div>
-                    <div className="kpi-value">$24,562.00</div>
+                    <div className="kpi-value">${loading ? '...' : summary.balance.toFixed(2)}</div>
                     <div className="kpi-trend positive">
                         <ArrowUpRight size={16} />
-                        <span>+2.4% from last month</span>
+                        <span>Connected to API</span>
                     </div>
                 </Card>
 
                 <Card hover>
                     <div className="kpi-header">
-                        <span className="kpi-title">Monthly Income</span>
+                        <span className="kpi-title">Recorded Income</span>
                         <div className="icon-wrapper income"><TrendingUp size={20} /></div>
                     </div>
-                    <div className="kpi-value">$8,240.00</div>
+                    <div className="kpi-value">${loading ? '...' : summary.totalIncome.toFixed(2)}</div>
                     <div className="kpi-trend positive">
                         <ArrowUpRight size={16} />
-                        <span>+5.1% from last month</span>
+                        <span>Connected to API</span>
                     </div>
                 </Card>
 
                 <Card hover>
                     <div className="kpi-header">
-                        <span className="kpi-title">Monthly Expenses</span>
+                        <span className="kpi-title">Recorded Expenses</span>
                         <div className="icon-wrapper expense"><TrendingDown size={20} /></div>
                     </div>
-                    <div className="kpi-value">$3,420.00</div>
+                    <div className="kpi-value">${loading ? '...' : summary.totalExpense.toFixed(2)}</div>
                     <div className="kpi-trend negative">
                         <ArrowDownRight size={16} />
-                        <span>-1.2% from last month</span>
+                        <span>Connected to API</span>
                     </div>
                 </Card>
 

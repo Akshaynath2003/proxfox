@@ -1,12 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { Users, Shield, Settings, Activity } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import './Admin.css';
 
 export function Admin() {
+    const { user } = useAuth();
+    const [stats, setStats] = useState({ totalUsers: 0, activeUsers: 0 });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const token = localStorage.getItem('proxfox_user') ? JSON.parse(localStorage.getItem('proxfox_user')).token : null;
+                const response = await fetch('/api/admin/stats', {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setStats(data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch admin stats", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (user && user.role === 'admin') {
+            fetchStats();
+        }
+    }, [user]);
+
     const adminStats = [
-        { label: 'Total Users', value: '1,248', icon: Users, change: '+12%' },
-        { label: 'System Health', value: '99.9%', icon: Activity, change: 'Stable' },
+        { label: 'Total Users', value: loading ? '...' : stats.totalUsers, icon: Users, change: '+12%' },
+        { label: 'Active Users', value: loading ? '...' : stats.activeUsers, icon: Activity, change: 'Stable' },
         { label: 'Active Sessions', value: '42', icon: Shield, change: '+5' },
         { label: 'Pending Requests', value: '7', icon: Settings, change: '-2' },
     ];

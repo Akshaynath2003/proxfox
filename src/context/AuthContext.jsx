@@ -17,39 +17,54 @@ export function AuthProvider({ children }) {
         setLoading(false);
     }, []);
 
-    const login = async (username, password) => {
-        // In a real app, this would be an API call
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const isAdmin = username.toLowerCase() === 'admin';
-                const userData = {
-                    username: username,
-                    role: isAdmin ? 'admin' : 'user',
-                    name: isAdmin ? 'Admin User' : 'Demo User'
-                };
+    const login = async (email, password) => {
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email, password }),
+            });
 
-                setUser(userData);
-                localStorage.setItem('proxfox_user', JSON.stringify(userData));
-                resolve({ success: true, user: userData });
-            }, 800); // Simulate network delay
-        });
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Login failed');
+            }
+
+            setUser(data);
+            localStorage.setItem('proxfox_user', JSON.stringify(data));
+            return { success: true, user: data };
+        } catch (error) {
+            console.error('Login error:', error);
+            return { success: false, error: error.message };
+        }
     };
 
     const register = async (userData) => {
-        // Simulated registration logic
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                const isRegisteringAdmin = userData.username.toLowerCase() === 'admin';
-                const newUser = {
-                    ...userData,
-                    role: isRegisteringAdmin ? 'admin' : 'user'
-                };
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(userData),
+            });
 
-                setUser(newUser);
-                localStorage.setItem('proxfox_user', JSON.stringify(newUser));
-                resolve({ success: true, user: newUser });
-            }, 800);
-        });
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Registration failed');
+            }
+
+            setUser(data);
+            localStorage.setItem('proxfox_user', JSON.stringify(data));
+            return { success: true, user: data };
+        } catch (error) {
+            console.error('Registration error:', error);
+            return { success: false, error: error.message };
+        }
     };
 
     const logout = () => {
