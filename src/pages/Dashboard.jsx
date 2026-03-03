@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl, authHeader } from '../utils/api';
 import { Card } from '../components/ui/Card';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
@@ -30,11 +31,9 @@ export function Dashboard() {
     useEffect(() => {
         const fetchSummary = async () => {
             try {
-                const token = localStorage.getItem('proxfox_user') ? JSON.parse(localStorage.getItem('proxfox_user')).token : null;
-                const response = await fetch('/api/finance/summary', {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
+
+                const response = await fetch(apiUrl('/api/finance/summary'), {
+                    headers: authHeader()
                 });
                 if (response.ok) {
                     const data = await response.json();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl, authHeader } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { Users, Shield, Settings, Activity } from 'lucide-react';
 import { Card } from '../components/ui/Card';
@@ -12,11 +13,8 @@ export function Admin() {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const token = localStorage.getItem('proxfox_user') ? JSON.parse(localStorage.getItem('proxfox_user')).token : null;
-                const response = await fetch('/api/admin/stats', {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
+                const response = await fetch(apiUrl('/api/admin/stats'), {
+                    headers: authHeader()
                 });
                 if (response.ok) {
                     const data = await response.json();
