@@ -1,21 +1,56 @@
-<<<<<<< HEAD
-# proxfox
-This is a financial Analyser Tracker
-=======
-# React + Vite
+# 🦊 ProxFox — AI-Powered Personal Finance Analyzer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 📁 Project Structure
 
-Currently, two official plugins are available:
+```
+proxfox/
+├── 📄 index.html              ← React app entry point
+├── 📄 vite.config.js          ← Vite config (proxies /api → localhost:5000)
+├── 📄 package.json            ← Frontend dependencies
+├── 📄 .env                    ← Environment variables (MongoDB URI, JWT secret)
+├── 📄 .gitignore
+│
+├── 📂 src/                    ← React Frontend
+│   ├── pages/                 ← Route pages (Dashboard, Login, Admin, etc.)
+│   ├── components/            ← Reusable UI components
+│   ├── context/               ← AuthContext (global login state)
+│   └── main.jsx               ← App entry
+│
+└── 📂 backend/                ← Django Python Backend
+    ├── manage.py              ← Run: python manage.py runserver 5000
+    ├── settings.py            ← Django config
+    ├── urls.py                ← Root URL router
+    └── api/
+        ├── views.py           ← All API endpoints
+        └── urls.py            ← API routes
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 How to Run
 
-## React Compiler
+Open **2 terminals**:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Terminal 1 — Backend (Django):**
+```bash
+cd proxfox/backend
+python manage.py runserver 5000
+```
 
-## Expanding the ESLint configuration
+**Terminal 2 — Frontend (React):**
+```bash
+cd proxfox
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
->>>>>>> 6174463 (feat: complete ProxFox frontend with authentication and dashboard pages)
+Then open **http://localhost:5173**
+
+## 🔑 Admin Access
+Register with any email starting with `admin` (e.g. `admin@proxfox.com`) to get admin role.
+
+## 🛠 Tech Stack
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19 + Vite + Recharts |
+| Backend | Django 5 + Django REST Framework |
+| Database | MongoDB Atlas (PyMongo) |
+| Auth | JWT + bcrypt |
+| AI | Google Gemini API |

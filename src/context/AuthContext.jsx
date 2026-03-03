@@ -27,15 +27,19 @@ export function AuthProvider({ children }) {
                 body: JSON.stringify({ email, password }),
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Login failed');
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Login failed');
+                }
+                setUser(data);
+                localStorage.setItem('proxfox_user', JSON.stringify(data));
+                return { success: true, user: data };
+            } else {
+                const text = await response.text();
+                throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}...`);
             }
-
-            setUser(data);
-            localStorage.setItem('proxfox_user', JSON.stringify(data));
-            return { success: true, user: data };
         } catch (error) {
             console.error('Login error:', error);
             return { success: false, error: error.message };
@@ -52,15 +56,19 @@ export function AuthProvider({ children }) {
                 body: JSON.stringify(userData),
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Registration failed');
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.message || 'Registration failed');
+                }
+                setUser(data);
+                localStorage.setItem('proxfox_user', JSON.stringify(data));
+                return { success: true, user: data };
+            } else {
+                const text = await response.text();
+                throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}...`);
             }
-
-            setUser(data);
-            localStorage.setItem('proxfox_user', JSON.stringify(data));
-            return { success: true, user: data };
         } catch (error) {
             console.error('Registration error:', error);
             return { success: false, error: error.message };
