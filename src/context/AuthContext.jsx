@@ -3,6 +3,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 // Simulated default user states
 // For the purpose of this demo, any user with username "admin" gets ad admin role
 const AuthContext = createContext(null);
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -19,7 +20,7 @@ export function AuthProvider({ children }) {
 
     const login = async (email, password) => {
         try {
-            const response = await fetch('/api/auth/login', {
+            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -48,7 +49,7 @@ export function AuthProvider({ children }) {
 
     const register = async (userData) => {
         try {
-            const response = await fetch('/api/auth/register', {
+            const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
