@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: proxfox-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 wsgi:application
+    envVars:
+      - key: MONGO_URI
+        sync: false   # You will enter this manually in Render dashboard
+      - key: JWT_SECRET
+        sync: false   # You will enter this manually in Render dashboard
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
