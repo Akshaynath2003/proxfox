@@ -202,7 +202,7 @@ def forgot_password(request):
         })
 
         # Build reset URL
-        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5174')
         reset_url = f"{frontend_url}/auth?token={token}"
 
         # Send email
