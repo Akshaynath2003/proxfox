@@ -6,6 +6,8 @@ urlpatterns = [
     path('auth/register', views.register_user),
     path('auth/login', views.login_user),
     path('auth/profile', views.get_user_profile),
+    path('auth/forgot-password', views.forgot_password),
+    path('auth/reset-password', views.reset_password),
 
     # Finance
     path('finance/transactions', views.transactions),

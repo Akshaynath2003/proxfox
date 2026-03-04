@@ -43,3 +43,24 @@ USE_TZ = True
 # MongoDB + JWT — read from environment variables
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/proxfox')
 JWT_SECRET = os.getenv('JWT_SECRET', 'proxfox_super_secret_key_123!')
+
+# Email — Use console backend in dev (no credentials needed), SMTP in production
+_email_user = os.getenv('EMAIL_HOST_USER', '')
+_email_pass = os.getenv('EMAIL_HOST_PASSWORD', '')
+_has_email_creds = bool(_email_user and _email_pass and 'your_gmail' not in _email_user)
+
+if _has_email_creds:
+    # Production: send real emails via Gmail SMTP
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.gmail.com'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = _email_user
+    EMAIL_HOST_PASSWORD = _email_pass
+    DEFAULT_FROM_EMAIL = _email_user
+else:
+    # Development: print emails to the terminal console
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    EMAIL_HOST_USER = ''
+    DEFAULT_FROM_EMAIL = 'noreply@proxfox.app'
+

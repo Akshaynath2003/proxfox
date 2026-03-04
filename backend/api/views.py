@@ -2,7 +2,9 @@ import os
 import json
 import jwt
 import bcrypt
+import secrets
 from datetime import datetime, timedelta
+from django.core.mail import send_mail
 from bson import ObjectId
 from bson.errors import InvalidId
 from django.http import JsonResponse
@@ -165,6 +167,101 @@ def login_user(request):
 
     except Exception as e:
         print(f"Login error: {e}")
+        return JsonResponse({'message': 'Server Error'}, status=500)
+
+
+@csrf_exempt
+def forgot_password(request):
+    """POST /api/auth/forgot-password"""
+    if request.method != 'POST':
+        return JsonResponse({'message': 'Method not allowed'}, status=405)
+    try:
+        data = json.loads(request.body)
+        email = data.get('email', '').strip().lower()
+        if not email:
+            return JsonResponse({'message': 'Email is required'}, status=400)
+
+        db = get_db()
+        user = db.users.find_one({'email': email})
+
+        # Always return success to avoid user enumeration
+        if not user:
+            return JsonResponse({'message': 'If that email exists, a reset link has been sent.'}, status=200)
+
+        # Generate a secure random token
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+
+        # Store token in DB (replace any existing token for this user)
+        db.password_reset_tokens.delete_many({'email': email})
+        db.password_reset_tokens.insert_one({
+            'email': email,
+            'token': token,
+            'expires_at': expires_at,
+            'created_at': datetime.utcnow(),
+        })
+
+        # Build reset URL
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        reset_url = f"{frontend_url}/auth?token={token}"
+
+        # Send email
+        send_mail(
+            subject='ProxFox — Reset Your Password',
+            message=(
+                f"Hi {user.get('username', 'there')},\n\n"
+                f"We received a request to reset your ProxFox password.\n\n"
+                f"Click the link below to set a new password (valid for 1 hour):\n"
+                f"{reset_url}\n\n"
+                f"If you did not request this, you can safely ignore this email.\n\n"
+                f"— The ProxFox Team"
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+
+        return JsonResponse({'message': 'If that email exists, a reset link has been sent.'}, status=200)
+
+    except Exception as e:
+        print(f"Forgot password error: {e}")
+        return JsonResponse({'message': 'Failed to send reset email. Please try again later.'}, status=500)
+
+
+@csrf_exempt
+def reset_password(request):
+    """POST /api/auth/reset-password"""
+    if request.method != 'POST':
+        return JsonResponse({'message': 'Method not allowed'}, status=405)
+    try:
+        data = json.loads(request.body)
+        token = data.get('token', '').strip()
+        new_password = data.get('password', '')
+
+        if not token or not new_password:
+            return JsonResponse({'message': 'Token and new password are required'}, status=400)
+
+        db = get_db()
+        record = db.password_reset_tokens.find_one({'token': token})
+
+        if not record:
+            return JsonResponse({'message': 'Reset link is invalid or expired.'}, status=400)
+
+        if datetime.utcnow() > record['expires_at']:
+            db.password_reset_tokens.delete_one({'token': token})
+            return JsonResponse({'message': 'Reset link has expired. Please request a new one.'}, status=400)
+
+        # Hash new password and update user
+        hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        db.users.update_one({'email': record['email']}, {'$set': {'password': hashed}})
+
+        # Invalidate token
+        db.password_reset_tokens.delete_one({'token': token})
+
+        return JsonResponse({'message': 'Password updated successfully.'}, status=200)
+
+    except Exception as e:
+        print(f"Reset password error: {e}")
         return JsonResponse({'message': 'Server Error'}, status=500)
 
 
