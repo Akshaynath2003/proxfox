@@ -431,3 +431,51 @@
         transform: translateY(0);
     }
 }
+
+/* ── Server Warm-up Banner (Render cold start) ── */
+.server-waking-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 0.875rem 1.25rem;
+    background: rgba(234, 179, 8, 0.08);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    border-radius: 10px;
+    margin-bottom: 1.25rem;
+    animation: fadeSlideIn 0.35s ease;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.server-waking-banner strong {
+    color: #eab308;
+}
+
+.server-waking-banner small {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+}
+
+.waking-spinner {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid rgba(234, 179, 8, 0.25);
+    border-top-color: #eab308;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Disabled submit button while server waking */
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

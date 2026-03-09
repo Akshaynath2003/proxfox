@@ -1,22 +1,60 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 
-// Simulated default user states
-// For the purpose of this demo, any user with username "admin" gets ad admin role
 const AuthContext = createContext(null);
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+// Ping /api/health until the server responds or timeout (ms) is reached
+async function warmUpServer(timeout = 60000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/health`, { cache: 'no-store' });
+            if (res.ok) return true;
+        } catch (_) {
+            // server still cold — keep retrying
+        }
+        await new Promise(r => setTimeout(r, 3000));
+    }
+    return false; // timed out
+}
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [serverReady, setServerReady] = useState(false);
+    const [serverWaking, setServerWaking] = useState(false);
 
     useEffect(() => {
-        // Simulate checking local storage for an existing session on load
+        // Restore session from localStorage
         const storedUser = localStorage.getItem('proxfox_user');
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
-        }
+        if (storedUser) setUser(JSON.parse(storedUser));
         setLoading(false);
+
+        // Pre-warm the backend immediately
+        let cancelled = false;
+        (async () => {
+            // Give it 1.5s — if not ready, show the waking banner
+            const quickCheck = await Promise.race([
+                warmUpServer(1500),
+                new Promise(r => setTimeout(() => r(false), 1500)),
+            ]);
+            if (cancelled) return;
+            if (quickCheck) {
+                setServerReady(true);
+                return;
+            }
+            // Still cold — show banner and keep retrying
+            setServerWaking(true);
+            const ready = await warmUpServer(60000);
+            if (!cancelled) {
+                setServerReady(ready);
+                setServerWaking(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
     }, []);
+
 
     const login = async (email, password) => {
         try {
@@ -87,7 +125,9 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
-        isAuthenticated: !!user
+        isAuthenticated: !!user,
+        serverReady,
+        serverWaking,
     };
 
     return (

@@ -403,7 +403,7 @@ export function Auth() {
     const [lockedUntil, setLockedUntil] = useState(null);
     const [touched, setTouched] = useState({});
 
-    const { login, register } = useAuth();
+    const { login, register, serverReady, serverWaking } = useAuth();
 
     const validateField = useCallback((name, value, pwd) => {
         switch (name) {
@@ -580,6 +580,18 @@ export function Auth() {
                             </p>
                         </div>
 
+                        {/* Server warm-up banner (Render cold start) */}
+                        {serverWaking && (
+                            <div className="server-waking-banner">
+                                <span className="waking-spinner" />
+                                <span>
+                                    <strong>Server is waking up…</strong>
+                                    <br />
+                                    <small>Free-tier backend takes ~30s on first load. Please wait.</small>
+                                </span>
+                            </div>
+                        )}
+
                         {error && <div className="auth-error">{error}</div>}
 
                         <form onSubmit={handleSubmit} className="auth-form" noValidate>
@@ -704,7 +716,8 @@ export function Auth() {
                             <button
                                 type="submit"
                                 className={`btn-primary w-full ${isLoading ? 'loading' : ''}`}
-                                disabled={isLoading || Boolean(lockedUntil && Date.now() < lockedUntil)}
+                                disabled={isLoading || Boolean(lockedUntil && Date.now() < lockedUntil) || serverWaking || !serverReady}
+                                title={serverWaking ? 'Waiting for server to wake up…' : ''}
                             >
                                 {isLoading ? 'Processing...' : (
                                     isLogin
