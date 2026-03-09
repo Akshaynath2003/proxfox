@@ -6,6 +6,7 @@ import {
     Wallet,
     PieChart,
     TrendingUp,
+    Target,
     MessageSquare,
     Settings,
     LogOut,
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
     { name: 'Transactions', icon: Wallet, path: '/transactions' },
     { name: 'Analytics', icon: PieChart, path: '/analytics' },
     { name: 'Investments', icon: TrendingUp, path: '/investments' },
+    { name: 'Goals', icon: Target, path: '/goals' },
     { name: 'AI Advisor', icon: MessageSquare, path: '/ai-advisor' },
 ];
 

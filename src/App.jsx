@@ -6,6 +6,7 @@ import { AIAdvisor } from './pages/AIAdvisor';
 import { Transactions } from './pages/Transactions';
 import { Analytics } from './pages/Analytics';
 import { Investments } from './pages/Investments';
+import { Goals } from './pages/Goals';
 import { Settings } from './pages/Settings';
 import { Admin } from './pages/Admin';
 import { Auth } from './pages/Auth';
@@ -64,6 +65,7 @@ function App() {
             <Route path="transactions" element={<Transactions />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="investments" element={<Investments />} />
+            <Route path="goals" element={<Goals />} />
             <Route path="ai-advisor" element={<AIAdvisor />} />
             <Route path="settings" element={<Settings />} />
 

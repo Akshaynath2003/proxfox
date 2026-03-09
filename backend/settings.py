@@ -43,6 +43,7 @@ USE_TZ = True
 # MongoDB + JWT — read from environment variables
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/proxfox')
 JWT_SECRET = os.getenv('JWT_SECRET', 'proxfox_super_secret_key_123!')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', os.getenv('VITE_GEMINI_API_KEY', ''))
 
 # Email — Use console backend in dev (no credentials needed), SMTP in production
 _email_user = os.getenv('EMAIL_HOST_USER', '')

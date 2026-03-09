@@ -1,19 +1,24 @@
-import os
-import json
-import jwt
-import bcrypt
-import secrets
+"""
+ProxFox Backend — API Views
+All endpoints return JsonResponse. MongoDB via PyMongo, JWT auth, Gemini AI.
+"""
+
+import os, json, re, jwt, bcrypt, secrets
 from datetime import datetime, timedelta
-from django.core.mail import send_mail
+from collections import defaultdict
+
 from bson import ObjectId
 from bson.errors import InvalidId
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-from pymongo import MongoClient
+from django.core.mail import send_mail
+from pymongo import MongoClient, ReturnDocument
 from django.conf import settings
 
-# ─── MongoDB Connection ────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# DATABASE
+# ═══════════════════════════════════════════════════════════════════════════════
+
 _client = None
 _db = None
 
@@ -22,63 +27,33 @@ def get_db():
     if _db is None:
         try:
             _client = MongoClient(settings.MONGO_URI, serverSelectionTimeoutMS=5000)
-            # Extract DB name from URI or use default
-            uri = settings.MONGO_URI
-            db_name = uri.split('/')[-1].split('?')[0] or 'proxfox'
+            db_name = settings.MONGO_URI.split('/')[-1].split('?')[0] or 'proxfox'
             _db = _client[db_name]
         except Exception as e:
             print(f"MongoDB connection error: {e}")
     return _db
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
-def generate_token(user_id):
-    payload = {
-        'id': str(user_id),
-        'exp': datetime.utcnow() + timedelta(days=30),
-        'iat': datetime.utcnow()
-    }
-    return jwt.encode(payload, settings.JWT_SECRET, algorithm='HS256')
+# ═══════════════════════════════════════════════════════════════════════════════
+# HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def get_user_id_from_token(request):
-    """Extract user ID from Bearer token. Returns None if invalid."""
-    auth_header = request.headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        return None
-    token = auth_header.split(' ')[1]
+def _json(data, status=200):
+    return JsonResponse(data, status=status, safe=False)
+
+def _err(msg, status=400):
+    return JsonResponse({'message': msg}, status=status)
+
+def _parse_body(request):
     try:
-        decoded = jwt.decode(token, settings.JWT_SECRET, algorithms=['HS256'])
-        return decoded.get('id')
-    except jwt.ExpiredSignatureError:
-        return None
-    except jwt.InvalidTokenError:
-        return None
+        return json.loads(request.body)
+    except Exception:
+        return {}
 
-def require_auth(request):
-    """Returns (user_id, None) or (None, error_response)."""
-    uid = get_user_id_from_token(request)
-    if not uid:
-        return None, JsonResponse({'message': 'Not authorized, token failed'}, status=401)
-    return uid, None
-
-def require_admin(request):
-    """Returns (user_id, None) if user is admin, else (None, error_response)."""
-    uid, err = require_auth(request)
-    if err:
-        return None, err
-    db = get_db()
-    user = db.users.find_one({'_id': ObjectId(uid)})
-    if not user or user.get('role') != 'admin':
-        return None, JsonResponse({'message': 'Not authorized as admin'}, status=403)
-    return uid, None
-
-def serialize_doc(doc):
-    """Convert MongoDB document to JSON-serializable dict."""
+def _serialize(doc):
+    """Convert MongoDB doc to JSON-safe dict."""
     if doc is None:
         return None
     doc = dict(doc)
-    if '_id' in doc:
-        doc['_id'] = str(doc['_id'])
-    # Serialize any nested ObjectIds
     for k, v in doc.items():
         if isinstance(v, ObjectId):
             doc[k] = str(v)
@@ -86,231 +61,219 @@ def serialize_doc(doc):
             doc[k] = v.isoformat()
     return doc
 
-# ──────────────────────────────────────────────────────────────────────────────
-# HEALTH CHECK  /api/health
-# ──────────────────────────────────────────────────────────────────────────────
+def _generate_token(user_id):
+    return jwt.encode(
+        {'id': str(user_id), 'exp': datetime.utcnow() + timedelta(days=30), 'iat': datetime.utcnow()},
+        settings.JWT_SECRET, algorithm='HS256'
+    )
+
+def _get_uid(request):
+    """Extract user ID from Bearer token."""
+    auth = request.headers.get('Authorization', '')
+    if not auth.startswith('Bearer '):
+        return None
+    try:
+        return jwt.decode(auth[7:], settings.JWT_SECRET, algorithms=['HS256']).get('id')
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        return None
+
+def _require_auth(request):
+    uid = _get_uid(request)
+    if not uid:
+        return None, _err('Not authorized, token failed', 401)
+    return uid, None
+
+def _require_admin(request):
+    uid, err = _require_auth(request)
+    if err:
+        return None, err
+    db = get_db()
+    user = db.users.find_one({'_id': ObjectId(uid)})
+    if not user or user.get('role') != 'admin':
+        return None, _err('Not authorized as admin', 403)
+    return uid, None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# HEALTH CHECK
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def health_check(request):
-    """GET /api/health — instant liveness probe, no DB call."""
-    return JsonResponse({'status': 'ok'}, status=200)
+    """GET /api/health — instant liveness probe, no DB."""
+    return _json({'status': 'ok'})
 
-# ──────────────────────────────────────────────────────────────────────────────
-# AUTH ROUTES  /api/auth/...
-# ──────────────────────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AUTH
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @csrf_exempt
 def register_user(request):
     """POST /api/auth/register"""
     if request.method != 'POST':
-        return JsonResponse({'message': 'Method not allowed'}, status=405)
+        return _err('Method not allowed', 405)
     try:
-        data = json.loads(request.body)
+        data = _parse_body(request)
         username = data.get('username', '').strip()
         email = data.get('email', '').strip().lower()
         phone = data.get('phoneNumber', '')
         password = data.get('password', '')
 
         if not all([username, email, password]):
-            return JsonResponse({'message': 'Please provide username, email and password'}, status=400)
+            return _err('Please provide username, email and password')
 
         db = get_db()
         if db.users.find_one({'email': email}):
-            return JsonResponse({'message': 'User already exists'}, status=400)
+            return _err('User already exists')
 
         role = 'admin' if email.startswith('admin') else 'user'
-        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
         result = db.users.insert_one({
-            'username': username,
-            'email': email,
-            'phoneNumber': phone,
-            'password': hashed,
-            'role': role,
-            'status': 'active',
+            'username': username, 'email': email, 'phoneNumber': phone,
+            'password': hashed, 'role': role, 'status': 'active',
             'createdAt': datetime.utcnow()
         })
 
-        return JsonResponse({
-            '_id': str(result.inserted_id),
-            'username': username,
-            'email': email,
-            'role': role,
-            'token': generate_token(result.inserted_id)
-        }, status=201)
-
+        return _json({
+            '_id': str(result.inserted_id), 'username': username,
+            'email': email, 'role': role,
+            'token': _generate_token(result.inserted_id)
+        }, 201)
     except Exception as e:
         print(f"Register error: {e}")
-        return JsonResponse({'message': str(e)}, status=500)
+        return _err('Server Error', 500)
 
 
 @csrf_exempt
 def login_user(request):
     """POST /api/auth/login"""
     if request.method != 'POST':
-        return JsonResponse({'message': 'Method not allowed'}, status=405)
+        return _err('Method not allowed', 405)
     try:
-        data = json.loads(request.body)
+        data = _parse_body(request)
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
 
         db = get_db()
         user = db.users.find_one({'email': email})
-
         if not user:
-            return JsonResponse({'message': 'Invalid email or password'}, status=401)
-
-        if not bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
-            return JsonResponse({'message': 'Invalid email or password'}, status=401)
-
+            return _err('Invalid email or password', 401)
+        if not bcrypt.checkpw(password.encode(), user['password'].encode()):
+            return _err('Invalid email or password', 401)
         if user.get('status') != 'active':
-            return JsonResponse({'message': f"Account is {user.get('status')}"}, status=401)
+            return _err(f"Account is {user.get('status')}", 401)
 
-        return JsonResponse({
-            '_id': str(user['_id']),
-            'username': user['username'],
-            'email': user['email'],
-            'role': user['role'],
-            'token': generate_token(user['_id'])
+        return _json({
+            '_id': str(user['_id']), 'username': user['username'],
+            'email': user['email'], 'role': user['role'],
+            'token': _generate_token(user['_id'])
         })
-
     except Exception as e:
         print(f"Login error: {e}")
-        return JsonResponse({'message': 'Server Error'}, status=500)
+        return _err('Server Error', 500)
 
 
 @csrf_exempt
 def forgot_password(request):
     """POST /api/auth/forgot-password"""
     if request.method != 'POST':
-        return JsonResponse({'message': 'Method not allowed'}, status=405)
+        return _err('Method not allowed', 405)
     try:
-        data = json.loads(request.body)
-        email = data.get('email', '').strip().lower()
+        email = _parse_body(request).get('email', '').strip().lower()
         if not email:
-            return JsonResponse({'message': 'Email is required'}, status=400)
+            return _err('Email is required')
 
         db = get_db()
         user = db.users.find_one({'email': email})
-
-        # Always return success to avoid user enumeration
         if not user:
-            return JsonResponse({'message': 'If that email exists, a reset link has been sent.'}, status=200)
+            return _json({'message': 'If that email exists, a reset link has been sent.'})
 
-        # Generate a secure random token
         token = secrets.token_urlsafe(32)
-        expires_at = datetime.utcnow() + timedelta(hours=1)
-
-        # Store token in DB (replace any existing token for this user)
         db.password_reset_tokens.delete_many({'email': email})
         db.password_reset_tokens.insert_one({
-            'email': email,
-            'token': token,
-            'expires_at': expires_at,
+            'email': email, 'token': token,
+            'expires_at': datetime.utcnow() + timedelta(hours=1),
             'created_at': datetime.utcnow(),
         })
 
-        # Build reset URL
-        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5174')
-        reset_url = f"{frontend_url}/auth?token={token}"
-
-        # Send email
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
         send_mail(
             subject='ProxFox — Reset Your Password',
-            message=(
-                f"Hi {user.get('username', 'there')},\n\n"
-                f"We received a request to reset your ProxFox password.\n\n"
-                f"Click the link below to set a new password (valid for 1 hour):\n"
-                f"{reset_url}\n\n"
-                f"If you did not request this, you can safely ignore this email.\n\n"
-                f"— The ProxFox Team"
-            ),
+            message=f"Click to reset: {frontend_url}/auth?token={token}\nValid for 1 hour.",
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False,
+            recipient_list=[email], fail_silently=False,
         )
-
-        return JsonResponse({'message': 'If that email exists, a reset link has been sent.'}, status=200)
-
+        return _json({'message': 'If that email exists, a reset link has been sent.'})
     except Exception as e:
         print(f"Forgot password error: {e}")
-        return JsonResponse({'message': 'Failed to send reset email. Please try again later.'}, status=500)
+        return _err('Failed to send reset email. Please try again later.', 500)
 
 
 @csrf_exempt
 def reset_password(request):
     """POST /api/auth/reset-password"""
     if request.method != 'POST':
-        return JsonResponse({'message': 'Method not allowed'}, status=405)
+        return _err('Method not allowed', 405)
     try:
-        data = json.loads(request.body)
+        data = _parse_body(request)
         token = data.get('token', '').strip()
         new_password = data.get('password', '')
-
         if not token or not new_password:
-            return JsonResponse({'message': 'Token and new password are required'}, status=400)
+            return _err('Token and new password are required')
 
         db = get_db()
         record = db.password_reset_tokens.find_one({'token': token})
-
         if not record:
-            return JsonResponse({'message': 'Reset link is invalid or expired.'}, status=400)
-
+            return _err('Reset link is invalid or expired.')
         if datetime.utcnow() > record['expires_at']:
             db.password_reset_tokens.delete_one({'token': token})
-            return JsonResponse({'message': 'Reset link has expired. Please request a new one.'}, status=400)
+            return _err('Reset link has expired. Please request a new one.')
 
-        # Hash new password and update user
-        hashed = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        hashed = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
         db.users.update_one({'email': record['email']}, {'$set': {'password': hashed}})
-
-        # Invalidate token
         db.password_reset_tokens.delete_one({'token': token})
-
-        return JsonResponse({'message': 'Password updated successfully.'}, status=200)
-
+        return _json({'message': 'Password updated successfully.'})
     except Exception as e:
         print(f"Reset password error: {e}")
-        return JsonResponse({'message': 'Server Error'}, status=500)
+        return _err('Server Error', 500)
 
 
 @csrf_exempt
 def get_user_profile(request):
     """GET /api/auth/profile"""
-    uid, err = require_auth(request)
+    uid, err = _require_auth(request)
     if err:
         return err
     try:
         db = get_db()
         user = db.users.find_one({'_id': ObjectId(uid)}, {'password': 0})
         if not user:
-            return JsonResponse({'message': 'User not found'}, status=404)
-        return JsonResponse(serialize_doc(user))
-    except Exception as e:
-        return JsonResponse({'message': 'Server Error'}, status=500)
+            return _err('User not found', 404)
+        return _json(_serialize(user))
+    except Exception:
+        return _err('Server Error', 500)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# FINANCE ROUTES  /api/finance/...
-# ──────────────────────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRANSACTIONS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @csrf_exempt
 def transactions(request):
-    """GET or POST /api/finance/transactions"""
-    uid, err = require_auth(request)
+    """GET | POST /api/finance/transactions"""
+    uid, err = _require_auth(request)
     if err:
         return err
-
     db = get_db()
 
     if request.method == 'GET':
-        try:
-            txns = list(db.transactions.find({'user': uid}).sort('date', -1))
-            return JsonResponse([serialize_doc(t) for t in txns], safe=False)
-        except Exception as e:
-            return JsonResponse({'message': 'Server Error'}, status=500)
+        txns = list(db.transactions.find({'user': uid}).sort('date', -1))
+        return _json([_serialize(t) for t in txns])
 
-    elif request.method == 'POST':
+    if request.method == 'POST':
         try:
-            data = json.loads(request.body)
+            data = _parse_body(request)
             doc = {
                 'user': uid,
                 'amount': float(data.get('amount', 0)),
@@ -323,113 +286,401 @@ def transactions(request):
             result = db.transactions.insert_one(doc)
             doc['_id'] = str(result.inserted_id)
             doc['createdAt'] = doc['createdAt'].isoformat()
-            return JsonResponse(doc, status=201)
+            return _json(doc, 201)
         except Exception as e:
-            return JsonResponse({'message': 'Server Error'}, status=500)
+            print(f"Create transaction error: {e}")
+            return _err('Server Error', 500)
 
-    return JsonResponse({'message': 'Method not allowed'}, status=405)
+    return _err('Method not allowed', 405)
 
+
+@csrf_exempt
+def transaction_detail(request, txn_id):
+    """PUT | DELETE /api/finance/transactions/<txn_id>"""
+    uid, err = _require_auth(request)
+    if err:
+        return err
+    db = get_db()
+
+    try:
+        oid = ObjectId(txn_id)
+    except InvalidId:
+        return _err('Invalid transaction ID')
+
+    if request.method == 'PUT':
+        try:
+            data = _parse_body(request)
+            update = {}
+            for field in ('amount', 'type', 'category', 'description', 'date'):
+                if field in data:
+                    update[field] = float(data[field]) if field == 'amount' else data[field]
+            if not update:
+                return _err('No fields to update')
+
+            result = db.transactions.find_one_and_update(
+                {'_id': oid, 'user': uid}, {'$set': update},
+                return_document=ReturnDocument.AFTER
+            )
+            if not result:
+                return _err('Transaction not found', 404)
+            return _json(_serialize(result))
+        except Exception as e:
+            print(f"Update transaction error: {e}")
+            return _err('Server Error', 500)
+
+    if request.method == 'DELETE':
+        result = db.transactions.delete_one({'_id': oid, 'user': uid})
+        if result.deleted_count == 0:
+            return _err('Transaction not found', 404)
+        return _json({'message': 'Transaction deleted'})
+
+    return _err('Method not allowed', 405)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FINANCE SUMMARY & CHART DATA
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @csrf_exempt
 def finance_summary(request):
     """GET /api/finance/summary"""
-    uid, err = require_auth(request)
+    uid, err = _require_auth(request)
     if err:
         return err
     try:
         db = get_db()
         txns = list(db.transactions.find({'user': uid}))
-
-        total_income = sum(t['amount'] for t in txns if t.get('type') == 'income')
-        total_expense = sum(t['amount'] for t in txns if t.get('type') == 'expense')
-        total_investment = sum(t['amount'] for t in txns if t.get('type') == 'investment')
-
-        return JsonResponse({
-            'totalIncome': total_income,
-            'totalExpense': total_expense,
-            'totalInvestment': total_investment,
-            'balance': total_income - total_expense - total_investment
+        income = sum(t['amount'] for t in txns if t.get('type') == 'income')
+        expense = sum(t['amount'] for t in txns if t.get('type') == 'expense')
+        investment = sum(t['amount'] for t in txns if t.get('type') == 'investment')
+        return _json({
+            'totalIncome': income, 'totalExpense': expense,
+            'totalInvestment': investment, 'balance': income - expense - investment
         })
-    except Exception as e:
-        return JsonResponse({'message': 'Server Error'}, status=500)
+    except Exception:
+        return _err('Server Error', 500)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# ADMIN ROUTES  /api/admin/...
-# ──────────────────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+def chart_data(request):
+    """GET /api/finance/chart-data?range=week|month|6months
+    Returns [{name, income, expenses}] for area/bar charts.
+    """
+    uid, err = _require_auth(request)
+    if err:
+        return err
+    try:
+        db = get_db()
+        range_param = request.GET.get('range', 'week')
+
+        now = datetime.utcnow()
+        if range_param == 'month':
+            start = now - timedelta(days=30)
+        elif range_param == '6months':
+            start = now - timedelta(days=180)
+        else:
+            start = now - timedelta(days=7)
+
+        txns = list(db.transactions.find({'user': uid}))
+
+        # Group by day label
+        buckets = defaultdict(lambda: {'income': 0, 'expenses': 0})
+
+        for t in txns:
+            try:
+                d = datetime.fromisoformat(t['date']) if isinstance(t['date'], str) else t['date']
+            except Exception:
+                continue
+            if d < start:
+                continue
+
+            if range_param == '6months':
+                label = d.strftime('%b')  # month name
+            elif range_param == 'month':
+                label = d.strftime('%d %b')  # day + month
+            else:
+                label = d.strftime('%a')  # weekday
+
+            amt = t.get('amount', 0)
+            if t.get('type') == 'income':
+                buckets[label]['income'] += amt
+            else:
+                buckets[label]['expenses'] += amt
+
+        result = [{'name': k, **v} for k, v in buckets.items()]
+        return _json(result)
+    except Exception as e:
+        print(f"Chart data error: {e}")
+        return _err('Server Error', 500)
+
+
+@csrf_exempt
+def category_breakdown(request):
+    """GET /api/finance/category-breakdown
+    Returns [{name, value}] for pie charts — expenses only.
+    """
+    uid, err = _require_auth(request)
+    if err:
+        return err
+    try:
+        db = get_db()
+        txns = list(db.transactions.find({'user': uid, 'type': 'expense'}))
+        cats = defaultdict(float)
+        for t in txns:
+            cats[t.get('category', 'Other')] += t.get('amount', 0)
+        result = [{'name': k, 'value': round(v, 2)} for k, v in cats.items()]
+        result.sort(key=lambda x: x['value'], reverse=True)
+        return _json(result)
+    except Exception as e:
+        print(f"Category breakdown error: {e}")
+        return _err('Server Error', 500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AI EXPENSE PARSING  (Google Gemini)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@csrf_exempt
+def parse_expense(request):
+    """POST /api/ai/parse-expense
+    Body: { "text": "Spent 500 on groceries yesterday" }
+    Returns: { amount, category, date, description, confidence }
+    """
+    uid, err = _require_auth(request)
+    if err:
+        return err
+    if request.method != 'POST':
+        return _err('Method not allowed', 405)
+
+    try:
+        text = _parse_body(request).get('text', '').strip()
+        if not text:
+            return _err('Text is required')
+
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+            return _err('Gemini API key not configured on server', 500)
+
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+
+        today = datetime.utcnow().strftime('%Y-%m-%d')
+        prompt = f"""Extract financial transaction details from the following text.
+Return ONLY a valid JSON object with these fields:
+- "amount": number (the monetary amount)
+- "category": string (one of: Food, Transport, Housing, Entertainment, Shopping, Health, Education, Utilities, Other)
+- "date": string in YYYY-MM-DD format (if mentioned, else use "{today}")
+- "description": string (brief summary)
+- "type": string ("expense" or "income")
+- "confidence": number 0-100 (how confident you are)
+
+Text: "{text}"
+
+Respond with ONLY the JSON object, no markdown, no explanation."""
+
+        result = model.generate_content(prompt)
+        raw = result.text.strip()
+        # Strip markdown code fences if present
+        raw = re.sub(r'^```(?:json)?\s*', '', raw)
+        raw = re.sub(r'\s*```$', '', raw)
+
+        parsed = json.loads(raw)
+        # Ensure required fields
+        parsed.setdefault('amount', 0)
+        parsed.setdefault('category', 'Other')
+        parsed.setdefault('date', today)
+        parsed.setdefault('description', text)
+        parsed.setdefault('type', 'expense')
+        parsed.setdefault('confidence', 50)
+
+        return _json(parsed)
+    except json.JSONDecodeError:
+        return _err('AI returned invalid JSON. Please try rephrasing.', 422)
+    except Exception as e:
+        print(f"AI parse error: {e}")
+        return _err(f'AI processing failed: {str(e)}', 500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SAVINGS GOALS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@csrf_exempt
+def goals(request):
+    """GET | POST /api/goals"""
+    uid, err = _require_auth(request)
+    if err:
+        return err
+    db = get_db()
+
+    if request.method == 'GET':
+        user_goals = list(db.goals.find({'user': uid}).sort('createdAt', -1))
+        return _json([_serialize(g) for g in user_goals])
+
+    if request.method == 'POST':
+        try:
+            data = _parse_body(request)
+            name = data.get('name', '').strip()
+            target_amount = float(data.get('targetAmount', 0))
+            current_savings = float(data.get('currentSavings', 0))
+            deadline_months = int(data.get('deadlineMonths', 12))
+
+            if not name or target_amount <= 0:
+                return _err('Goal name and target amount are required')
+
+            remaining = target_amount - current_savings
+            monthly_needed = round(remaining / max(deadline_months, 1), 2) if remaining > 0 else 0
+            feasible = monthly_needed >= 0
+
+            doc = {
+                'user': uid, 'name': name,
+                'targetAmount': target_amount,
+                'currentSavings': current_savings,
+                'deadlineMonths': deadline_months,
+                'monthlyNeeded': monthly_needed,
+                'feasible': feasible,
+                'createdAt': datetime.utcnow()
+            }
+            result = db.goals.insert_one(doc)
+            doc['_id'] = str(result.inserted_id)
+            doc['createdAt'] = doc['createdAt'].isoformat()
+            return _json(doc, 201)
+        except Exception as e:
+            print(f"Create goal error: {e}")
+            return _err('Server Error', 500)
+
+    return _err('Method not allowed', 405)
+
+
+@csrf_exempt
+def goal_detail(request, goal_id):
+    """PUT | DELETE /api/goals/<goal_id>"""
+    uid, err = _require_auth(request)
+    if err:
+        return err
+    db = get_db()
+
+    try:
+        oid = ObjectId(goal_id)
+    except InvalidId:
+        return _err('Invalid goal ID')
+
+    if request.method == 'PUT':
+        try:
+            data = _parse_body(request)
+            update = {}
+            for field in ('name', 'targetAmount', 'currentSavings', 'deadlineMonths'):
+                if field in data:
+                    if field in ('targetAmount', 'currentSavings'):
+                        update[field] = float(data[field])
+                    elif field == 'deadlineMonths':
+                        update[field] = int(data[field])
+                    else:
+                        update[field] = data[field]
+
+            # Recalculate monthly needed
+            goal = db.goals.find_one({'_id': oid, 'user': uid})
+            if not goal:
+                return _err('Goal not found', 404)
+
+            target = update.get('targetAmount', goal['targetAmount'])
+            savings = update.get('currentSavings', goal['currentSavings'])
+            months = update.get('deadlineMonths', goal['deadlineMonths'])
+            remaining = target - savings
+            update['monthlyNeeded'] = round(remaining / max(months, 1), 2) if remaining > 0 else 0
+            update['feasible'] = update['monthlyNeeded'] >= 0
+
+            result = db.goals.find_one_and_update(
+                {'_id': oid, 'user': uid}, {'$set': update},
+                return_document=ReturnDocument.AFTER
+            )
+            return _json(_serialize(result))
+        except Exception as e:
+            print(f"Update goal error: {e}")
+            return _err('Server Error', 500)
+
+    if request.method == 'DELETE':
+        result = db.goals.delete_one({'_id': oid, 'user': uid})
+        if result.deleted_count == 0:
+            return _err('Goal not found', 404)
+        return _json({'message': 'Goal deleted'})
+
+    return _err('Method not allowed', 405)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @csrf_exempt
 def admin_users(request):
     """GET /api/admin/users"""
-    uid, err = require_admin(request)
+    uid, err = _require_admin(request)
     if err:
         return err
     try:
         db = get_db()
         users = list(db.users.find({}, {'password': 0}))
-        return JsonResponse([serialize_doc(u) for u in users], safe=False)
-    except Exception as e:
-        return JsonResponse({'message': 'Server Error'}, status=500)
+        return _json([_serialize(u) for u in users])
+    except Exception:
+        return _err('Server Error', 500)
 
 
 @csrf_exempt
 def admin_user_status(request, user_id):
     """PUT /api/admin/user/<user_id>/status"""
-    uid, err = require_admin(request)
+    uid, err = _require_admin(request)
     if err:
         return err
     if request.method != 'PUT':
-        return JsonResponse({'message': 'Method not allowed'}, status=405)
+        return _err('Method not allowed', 405)
     try:
-        data = json.loads(request.body)
-        new_status = data.get('status')
+        data = _parse_body(request)
         db = get_db()
         result = db.users.find_one_and_update(
             {'_id': ObjectId(user_id)},
-            {'$set': {'status': new_status}},
-            return_document=True
+            {'$set': {'status': data.get('status')}},
+            return_document=ReturnDocument.AFTER
         )
         if not result:
-            return JsonResponse({'message': 'User not found'}, status=404)
-        return JsonResponse({
-            '_id': str(result['_id']),
-            'username': result.get('username'),
-            'email': result.get('email'),
-            'status': result.get('status')
+            return _err('User not found', 404)
+        return _json({
+            '_id': str(result['_id']), 'username': result.get('username'),
+            'email': result.get('email'), 'status': result.get('status')
         })
-    except Exception as e:
-        return JsonResponse({'message': 'Server Error'}, status=500)
+    except Exception:
+        return _err('Server Error', 500)
 
 
 @csrf_exempt
 def admin_stats(request):
     """GET /api/admin/stats"""
-    uid, err = require_admin(request)
+    uid, err = _require_admin(request)
     if err:
         return err
     try:
         db = get_db()
-        total_users = db.users.count_documents({})
-        active_users = db.users.count_documents({'status': 'active'})
-        total_transactions = db.transactions.count_documents({})
-        return JsonResponse({
-            'totalUsers': total_users,
-            'activeUsers': active_users,
-            'totalTransactions': total_transactions
+        return _json({
+            'totalUsers': db.users.count_documents({}),
+            'activeUsers': db.users.count_documents({'status': 'active'}),
+            'totalTransactions': db.transactions.count_documents({}),
+            'totalGoals': db.goals.count_documents({})
         })
-    except Exception as e:
-        return JsonResponse({'message': 'Server Error'}, status=500)
+    except Exception:
+        return _err('Server Error', 500)
 
-# ──────────────────────────────────────────────────────────────────────────────
-# SETTINGS ROUTES  /api/settings/...
-# ──────────────────────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SETTINGS
+# ═══════════════════════════════════════════════════════════════════════════════
 
 @csrf_exempt
 def system_settings(request):
-    """GET or PUT /api/settings"""
-    uid, err = require_auth(request)
+    """GET | PUT /api/settings"""
+    uid, err = _require_auth(request)
     if err:
         return err
-
     db = get_db()
 
     if request.method == 'GET':
@@ -437,19 +688,17 @@ def system_settings(request):
         if not s:
             s = {'theme': 'dark', 'notifications': True, 'currency': 'INR'}
             db.systemsettings.insert_one(s)
-        return JsonResponse(serialize_doc(s))
+        return _json(_serialize(s))
 
-    elif request.method == 'PUT':
+    if request.method == 'PUT':
         try:
-            data = json.loads(request.body)
+            data = _parse_body(request)
             s = db.systemsettings.find_one_and_update(
-                {},
-                {'$set': data},
-                upsert=True,
-                return_document=True
+                {}, {'$set': data}, upsert=True,
+                return_document=ReturnDocument.AFTER
             )
-            return JsonResponse(serialize_doc(s))
-        except Exception as e:
-            return JsonResponse({'message': 'Server Error'}, status=500)
+            return _json(_serialize(s))
+        except Exception:
+            return _err('Server Error', 500)
 
-    return JsonResponse({'message': 'Method not allowed'}, status=405)
+    return _err('Method not allowed', 405)
