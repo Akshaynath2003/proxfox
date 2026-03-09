@@ -502,6 +502,93 @@ Respond with ONLY the JSON object, no markdown, no explanation."""
         return _err(f'AI processing failed: {str(e)}', 500)
 
 
+@csrf_exempt
+def ai_chat(request):
+    """POST /api/ai/chat
+    Body: { "message": "How can I save more?", "history": [...] }
+    Returns: { "reply": "..." }
+    Proxies to Gemini with full financial context.
+    """
+    uid, err = _require_auth(request)
+    if err:
+        return err
+    if request.method != 'POST':
+        return _err('Method not allowed', 405)
+
+    try:
+        data = _parse_body(request)
+        message = data.get('message', '').strip()
+        history = data.get('history', [])
+        if not message:
+            return _err('Message is required')
+
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+            return _err('Gemini API key not configured on server', 500)
+
+        # Gather user's financial context for personalized advice
+        db = get_db()
+        txns = list(db.transactions.find({'user': uid}).sort('date', -1).limit(20))
+        goals_list = list(db.goals.find({'user': uid}))
+
+        income = sum(t['amount'] for t in txns if t.get('type') == 'income')
+        expense = sum(t['amount'] for t in txns if t.get('type') == 'expense')
+        balance = income - expense
+
+        # Build financial snapshot
+        recent_txns_str = ""
+        for t in txns[:10]:
+            recent_txns_str += f"  - {t.get('type','expense')}: ${t.get('amount',0):.0f} on {t.get('category','Other')} ({t.get('description','')})\n"
+
+        goals_str = ""
+        for g in goals_list:
+            goals_str += f"  - {g.get('name','')}: ${g.get('currentSavings',0):.0f} / ${g.get('targetAmount',0):.0f} ({g.get('deadlineMonths',0)} months left, needs ${g.get('monthlyNeeded',0):.0f}/mo)\n"
+
+        system_prompt = f"""You are ProxFox AI, a professional and friendly personal finance advisor.
+You have access to the user's real financial data:
+
+FINANCIAL SNAPSHOT:
+- Total Income: ${income:.2f}
+- Total Expenses: ${expense:.2f}
+- Current Balance: ${balance:.2f}
+
+RECENT TRANSACTIONS:
+{recent_txns_str if recent_txns_str else '  No transactions yet.'}
+
+SAVINGS GOALS:
+{goals_str if goals_str else '  No goals set yet.'}
+
+RULES:
+- Keep responses concise (2-4 paragraphs max)
+- Give specific, actionable advice based on their real data
+- Use bullet points for lists
+- Do not use markdown headers (# or ##)
+- Be encouraging but honest about spending habits
+- If they ask about something unrelated to finance, gently redirect"""
+
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+
+        # Build conversation with history
+        conversation = [system_prompt + "\n\nUser: " + message]
+        if history:
+            conv_text = system_prompt + "\n\n"
+            for h in history[-6:]:  # Last 6 messages for context
+                role = "User" if h.get('role') == 'user' else "ProxFox AI"
+                conv_text += f"{role}: {h.get('text', '')}\n\n"
+            conv_text += f"User: {message}\n\nProxFox AI:"
+            conversation = [conv_text]
+
+        result = model.generate_content(conversation[0])
+        reply = result.text.strip()
+
+        return _json({'reply': reply})
+    except Exception as e:
+        print(f"AI chat error: {e}")
+        return _err(f'AI processing failed: {str(e)}', 500)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SAVINGS GOALS
 # ═══════════════════════════════════════════════════════════════════════════════

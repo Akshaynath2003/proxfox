@@ -21,6 +21,7 @@ urlpatterns = [
 
     # AI
     path('ai/parse-expense', views.parse_expense),
+    path('ai/chat', views.ai_chat),
 
     # Goals
     path('goals', views.goals),
