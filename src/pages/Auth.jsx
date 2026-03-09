@@ -5,7 +5,7 @@ import { Mail, Lock, User, Phone, LogIn, UserPlus, Eye, EyeOff, ShieldCheck, Arr
 import { Card } from '../components/ui/Card';
 import './Auth.css';
 
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 // ---------- Validation Rules ----------
 const RULES = {
