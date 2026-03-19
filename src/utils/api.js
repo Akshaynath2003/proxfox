@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '' : 'https://proxfox-backend.onrender.com');
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 export const apiUrl = (path) => `${API_BASE}${path}`;
@@ -82,3 +82,5 @@ export async function fetchJson(path, options = {}) {
         details: compactText,
     });
 }
+
+
