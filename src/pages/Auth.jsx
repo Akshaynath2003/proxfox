@@ -1,11 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/useAuth';
+import { fetchJson } from '../utils/api';
 import { Mail, Lock, User, Phone, LogIn, UserPlus, Eye, EyeOff, ShieldCheck, ArrowLeft, KeyRound, Send } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import './Auth.css';
-
-const API_BASE = '/api';
 
 // ---------- Validation Rules ----------
 const RULES = {
@@ -72,133 +71,40 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_MS = 30 * 1000;
 
 // ══════════════════════════════════════════
-//  FORGOT PASSWORD VIEW
+//  FORGOT PASSWORD WIZARD
 // ══════════════════════════════════════════
 function ForgotPasswordView({ onBack }) {
+    const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
     const [email, setEmail] = useState('');
     const [emailErr, setEmailErr] = useState('');
-    const [touched, setTouched] = useState(false);
+    const [otp, setOtp] = useState('');
+    const [otpErr, setOtpErr] = useState('');
+    const [generatedOtp, setGeneratedOtp] = useState(''); // for demonstration
+
+    const [formData, setFormData] = useState({ password: '', confirmPassword: '' });
+    const [errors, setErrors] = useState({});
+    const [showPwd, setShowPwd] = useState(false);
+    const [showConf, setShowConf] = useState(false);
+
+    const [touched, setTouched] = useState({});
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [success, setSuccess] = useState(false);
 
-    const validate = (v) => {
+    // Helpers
+    const validateEmail = (v) => {
         if (!v) return 'Email is required.';
         if (!RULES.email.pattern.test(v)) return 'Enter a valid email address.';
         return '';
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setTouched(true);
-        const err = validate(email);
-        setEmailErr(err);
-        if (err) return;
-
-        setIsLoading(true);
-        setError(null);
-        try {
-            const res = await fetch(`${API_BASE}/auth/forgot-password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Something went wrong.');
-            setSuccess(true);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
-        }
+    const validateOtp = (v) => {
+        if (!v) return 'OTP is required.';
+        if (v.length < 6) return 'OTP must be 6 characters.';
+        return '';
     };
 
-    if (success) {
-        return (
-            <>
-                <div className="auth-header">
-                    <h2>Check Your Email</h2>
-                    <p>We've sent a password reset link to <strong>{email}</strong></p>
-                </div>
-                <div className="auth-success-banner">
-                    <span className="success-icon">✉️</span>
-                    <div>
-                        <p className="success-title">Reset link sent!</p>
-                        <p className="success-sub">Check your inbox (and spam folder). The link is valid for <strong>1 hour</strong>.</p>
-                    </div>
-                </div>
-                <button type="button" className="btn-back-link" onClick={onBack}>
-                    <ArrowLeft size={14} /> Back to Sign In
-                </button>
-            </>
-        );
-    }
-
-    return (
-        <>
-            <div className="auth-header">
-                <h2>Forgot Password</h2>
-                <p>Enter your email and we'll send you a reset link</p>
-            </div>
-
-            {error && <div className="auth-error">{error}</div>}
-
-            <form onSubmit={handleSubmit} className="auth-form" noValidate>
-                <div className="form-group">
-                    <label>Email Address</label>
-                    <div className="input-with-icon">
-                        <span className="input-icon"><Mail size={18} /></span>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={e => {
-                                setEmail(e.target.value);
-                                if (touched) setEmailErr(validate(e.target.value));
-                            }}
-                            onBlur={() => { setTouched(true); setEmailErr(validate(email)); }}
-                            placeholder="name@example.com"
-                            className={`form-input icon-padding${touched && emailErr ? ' input-error' : ''}${touched && !emailErr && email ? ' input-valid' : ''}`}
-                        />
-                    </div>
-                    {touched && emailErr && <span className="field-error-text">{emailErr}</span>}
-                </div>
-
-                <button
-                    type="submit"
-                    className={`btn-primary w-full ${isLoading ? 'loading' : ''}`}
-                    disabled={isLoading}
-                >
-                    {isLoading ? 'Sending...' : <><Send size={16} className="btn-icon" /> Send Reset Link</>}
-                </button>
-            </form>
-
-            <button type="button" className="btn-back-link" onClick={onBack}>
-                <ArrowLeft size={14} /> Back to Sign In
-            </button>
-        </>
-    );
-}
-
-// ══════════════════════════════════════════
-//  RESET PASSWORD VIEW
-// ══════════════════════════════════════════
-function ResetPasswordView({ token, onBack }) {
-    const navigate = useNavigate();
-    const [formData, setFormData] = useState({ password: '', confirmPassword: '' });
-    const [errors, setErrors] = useState({});
-    const [touched, setTouched] = useState({});
-    const [showPwd, setShowPwd] = useState(false);
-    const [showConf, setShowConf] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [success, setSuccess] = useState(false);
-
-    const pwdStrength = passwordStrength(formData.password);
-    const pwdIssues = getPasswordIssues(formData.password);
-    const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'];
-    const strengthColors = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#6366f1'];
-
-    const validate = (name, value, pwd) => {
+    const validatePwd = (name, value, pwd) => {
         if (name === 'password') {
             if (!value) return 'Password is required.';
             const issues = getPasswordIssues(value);
@@ -211,49 +117,62 @@ function ResetPasswordView({ token, onBack }) {
         return '';
     };
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => {
-            const next = { ...prev, [name]: value };
-            setErrors(errs => ({
-                ...errs,
-                [name]: touched[name] ? validate(name, value, next.password) : errs[name],
-                ...(name === 'password' && touched.confirmPassword
-                    ? { confirmPassword: validate('confirmPassword', next.confirmPassword, value) }
-                    : {}),
-            }));
-            return next;
-        });
+    // Step 1: Send Email API
+    const handleSendEmail = async (e) => {
+        e.preventDefault();
+        setTouched(p => ({ ...p, email: true }));
+        const err = validateEmail(email);
+        setEmailErr(err);
+        if (err) return;
+
+        setIsLoading(true);
+        setError(null);
+        try {
+            const data = await fetchJson('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+            if (data.otp) setGeneratedOtp(data.otp); // Demo purposes
+            setStep(2);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const handleBlur = (e) => {
-        const { name, value } = e.target;
-        setTouched(p => ({ ...p, [name]: true }));
-        setErrors(p => ({ ...p, [name]: validate(name, value) }));
+    // Step 2: Verify OTP UI step
+    const handleVerifyOtp = (e) => {
+        e.preventDefault();
+        setTouched(p => ({ ...p, otp: true }));
+        const err = validateOtp(otp);
+        setOtpErr(err);
+        if (err) return;
+        setStep(3);
+        setError(null);
     };
 
-    const handleSubmit = async (e) => {
+    // Step 3: Reset Password API
+    const handleReset = async (e) => {
         e.preventDefault();
         const errs = {
-            password: validate('password', formData.password),
-            confirmPassword: validate('confirmPassword', formData.confirmPassword, formData.password),
+            password: validatePwd('password', formData.password),
+            confirmPassword: validatePwd('confirmPassword', formData.confirmPassword, formData.password),
         };
         setErrors(errs);
-        setTouched({ password: true, confirmPassword: true });
+        setTouched(p => ({ ...p, password: true, confirmPassword: true }));
         if (Object.values(errs).some(v => v)) return;
 
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE}/auth/reset-password`, {
+            await fetchJson('/api/auth/reset-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token, password: formData.password }),
+                body: JSON.stringify({ email, token: otp, password: formData.password }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || 'Something went wrong.');
             setSuccess(true);
-            setTimeout(() => navigate('/auth', { replace: true }), 3000);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -272,96 +191,179 @@ function ResetPasswordView({ token, onBack }) {
                     <span className="success-icon">✅</span>
                     <div>
                         <p className="success-title">All done!</p>
-                        <p className="success-sub">Redirecting you to sign in…</p>
+                        <p className="success-sub">You can now sign in with your new password.</p>
                     </div>
                 </div>
+                <button type="button" className="btn-primary w-full mt-4" onClick={onBack}>
+                    Sign In Now
+                </button>
             </>
         );
     }
 
+    const pwdStrength = passwordStrength(formData.password);
+    const pwdIssues = getPasswordIssues(formData.password);
+    const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'];
+    const strengthColors = ['', '#ef4444', '#f97316', '#eab308', '#22c55e', '#6366f1'];
+
     return (
         <>
             <div className="auth-header">
-                <h2>Reset Password</h2>
-                <p>Enter a new password for your account</p>
+                <h2>Forgot Password</h2>
+                {step === 1 && <p>Enter your email and an OTP will be generated</p>}
+                {step === 2 && <p>Enter the 6-digit OTP generated</p>}
+                {step === 3 && <p>Enter a new password for your account</p>}
             </div>
 
             {error && <div className="auth-error">{error}</div>}
 
-            <form onSubmit={handleSubmit} className="auth-form" noValidate>
-                {/* New Password */}
-                <div className="form-group">
-                    <label>New Password</label>
-                    <div className="input-with-icon">
-                        <span className="input-icon"><Lock size={18} /></span>
-                        <input
-                            type={showPwd ? 'text' : 'password'}
-                            name="password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            placeholder="••••••••"
-                            className={`form-input icon-padding icon-padding-right${touched.password && errors.password ? ' input-error' : ''}${touched.password && !errors.password && formData.password ? ' input-valid' : ''}`}
-                            autoComplete="new-password"
-                        />
-                        <button type="button" className="toggle-eye" onClick={() => setShowPwd(p => !p)}>
-                            {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
+            {generatedOtp && step === 2 && (
+                <div className="auth-success-banner" style={{ marginBottom: '1rem', padding: '0.75rem', fontSize: '0.9rem' }}>
+                    <span className="success-icon">ℹ️</span>
+                    <div>
+                        <strong>Demo OTP: </strong> <span>{generatedOtp}</span>
                     </div>
-                    {touched.password && errors.password && <span className="field-error-text">{errors.password}</span>}
-                    {/* Strength meter */}
-                    {formData.password && (
-                        <div className="password-strength">
-                            <div className="strength-bars">
-                                {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className="strength-bar"
-                                        style={{ background: pwdStrength >= i ? strengthColors[pwdStrength] : 'var(--border-color)' }} />
-                                ))}
-                            </div>
-                            <span className="strength-label" style={{ color: strengthColors[pwdStrength] }}>
-                                {strengthLabels[pwdStrength]}
-                            </span>
-                            {pwdIssues.length > 0
-                                ? <ul className="pwd-requirements">{pwdIssues.map(i => <li key={i} className="req-unmet">✗ {i}</li>)}</ul>
-                                : <p className="req-all-met"><ShieldCheck size={13} /> All requirements met</p>
-                            }
+                </div>
+            )}
+
+            {step === 1 && (
+                <form onSubmit={handleSendEmail} className="auth-form" noValidate>
+                    <div className="form-group">
+                        <label>Email Address</label>
+                        <div className="input-with-icon">
+                            <span className="input-icon"><Mail size={18} /></span>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={e => {
+                                    setEmail(e.target.value);
+                                    if (touched.email) setEmailErr(validateEmail(e.target.value));
+                                }}
+                                onBlur={() => { setTouched(p => ({ ...p, email: true })); setEmailErr(validateEmail(email)); }}
+                                placeholder="name@example.com"
+                                className={`form-input icon-padding${touched.email && emailErr ? ' input-error' : ''}${touched.email && !emailErr && email ? ' input-valid' : ''}`}
+                            />
                         </div>
-                    )}
-                </div>
-
-                {/* Confirm Password */}
-                <div className="form-group">
-                    <label>Confirm Password</label>
-                    <div className="input-with-icon">
-                        <span className="input-icon"><Lock size={18} /></span>
-                        <input
-                            type={showConf ? 'text' : 'password'}
-                            name="confirmPassword"
-                            value={formData.confirmPassword}
-                            onChange={handleChange}
-                            onBlur={handleBlur}
-                            placeholder="••••••••"
-                            className={`form-input icon-padding icon-padding-right${touched.confirmPassword && errors.confirmPassword ? ' input-error' : ''}${touched.confirmPassword && !errors.confirmPassword && formData.confirmPassword ? ' input-valid' : ''}`}
-                            autoComplete="new-password"
-                        />
-                        <button type="button" className="toggle-eye" onClick={() => setShowConf(p => !p)}>
-                            {showConf ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
+                        {touched.email && emailErr && <span className="field-error-text">{emailErr}</span>}
                     </div>
-                    {touched.confirmPassword && errors.confirmPassword && <span className="field-error-text">{errors.confirmPassword}</span>}
-                </div>
 
-                <button
-                    type="submit"
-                    className={`btn-primary w-full ${isLoading ? 'loading' : ''}`}
-                    disabled={isLoading}
-                >
-                    {isLoading ? 'Resetting...' : <><KeyRound size={16} className="btn-icon" /> Reset Password</>}
-                </button>
-            </form>
+                    <button type="submit" className={`btn-primary w-full ${isLoading ? 'loading' : ''}`} disabled={isLoading}>
+                        {isLoading ? 'Generating...' : <><Send size={16} className="btn-icon" /> Generate OTP</>}
+                    </button>
+                </form>
+            )}
 
-            <button type="button" className="btn-back-link" onClick={onBack}>
-                <ArrowLeft size={14} /> Back to Sign In
+            {step === 2 && (
+                <form onSubmit={handleVerifyOtp} className="auth-form" noValidate>
+                    <div className="form-group">
+                        <label>One-Time Password (OTP)</label>
+                        <div className="input-with-icon">
+                            <span className="input-icon"><KeyRound size={18} /></span>
+                            <input
+                                type="text"
+                                value={otp}
+                                onChange={e => {
+                                    setOtp(e.target.value);
+                                    if (touched.otp) setOtpErr(validateOtp(e.target.value));
+                                }}
+                                onBlur={() => { setTouched(p => ({ ...p, otp: true })); setOtpErr(validateOtp(otp)); }}
+                                placeholder="123456"
+                                className={`form-input icon-padding${touched.otp && otpErr ? ' input-error' : ''}${touched.otp && !otpErr && otp.length >= 6 ? ' input-valid' : ''}`}
+                                maxLength={6}
+                            />
+                        </div>
+                        {touched.otp && otpErr && <span className="field-error-text">{otpErr}</span>}
+                    </div>
+
+                    <button type="submit" className="btn-primary w-full">
+                        Verify OTP
+                    </button>
+                </form>
+            )}
+
+            {step === 3 && (
+                <form onSubmit={handleReset} className="auth-form" noValidate>
+                    <div className="form-group">
+                        <label>New Password</label>
+                        <div className="input-with-icon">
+                            <span className="input-icon"><Lock size={18} /></span>
+                            <input
+                                type={showPwd ? 'text' : 'password'}
+                                name="password"
+                                value={formData.password}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setFormData(p => ({ ...p, password: val }));
+                                    if (touched.password) setErrors(p => ({ ...p, password: validatePwd('password', val) }));
+                                }}
+                                onBlur={() => { setTouched(p => ({ ...p, password: true })); setErrors(p => ({ ...p, password: validatePwd('password', formData.password) })); }}
+                                placeholder="••••••••"
+                                className={`form-input icon-padding icon-padding-right${touched.password && errors.password ? ' input-error' : ''}${touched.password && !errors.password && formData.password ? ' input-valid' : ''}`}
+                                autoComplete="new-password"
+                            />
+                            <button type="button" className="toggle-eye" onClick={() => setShowPwd(p => !p)}>
+                                {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                        {touched.password && errors.password && <span className="field-error-text">{errors.password}</span>}
+                        {formData.password && (
+                            <div className="password-strength">
+                                <div className="strength-bars">
+                                    {[1, 2, 3, 4, 5].map(i => (
+                                        <div key={i} className="strength-bar"
+                                            style={{ background: pwdStrength >= i ? strengthColors[pwdStrength] : 'var(--border-color)' }} />
+                                    ))}
+                                </div>
+                                <span className="strength-label" style={{ color: strengthColors[pwdStrength] }}>
+                                    {strengthLabels[pwdStrength]}
+                                </span>
+                                {pwdIssues.length > 0
+                                    ? <ul className="pwd-requirements">{pwdIssues.map(i => <li key={i} className="req-unmet">✗ {i}</li>)}</ul>
+                                    : <p className="req-all-met"><ShieldCheck size={13} /> All requirements met</p>
+                                }
+                            </div>
+                        )}
+                    </div>
+                    <div className="form-group">
+                        <label>Confirm Password</label>
+                        <div className="input-with-icon">
+                            <span className="input-icon"><Lock size={18} /></span>
+                            <input
+                                type={showConf ? 'text' : 'password'}
+                                name="confirmPassword"
+                                value={formData.confirmPassword}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setFormData(p => ({ ...p, confirmPassword: val }));
+                                    if (touched.confirmPassword) setErrors(p => ({ ...p, confirmPassword: validatePwd('confirmPassword', val, formData.password) }));
+                                }}
+                                onBlur={() => { setTouched(p => ({ ...p, confirmPassword: true })); setErrors(p => ({ ...p, confirmPassword: validatePwd('confirmPassword', formData.confirmPassword, formData.password) })); }}
+                                placeholder="••••••••"
+                                className={`form-input icon-padding icon-padding-right${touched.confirmPassword && errors.confirmPassword ? ' input-error' : ''}${touched.confirmPassword && !errors.confirmPassword && formData.confirmPassword ? ' input-valid' : ''}`}
+                                autoComplete="new-password"
+                            />
+                            <button type="button" className="toggle-eye" onClick={() => setShowConf(p => !p)}>
+                                {showConf ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                        {touched.confirmPassword && errors.confirmPassword && <span className="field-error-text">{errors.confirmPassword}</span>}
+                    </div>
+
+                    <button type="submit" className={`btn-primary w-full ${isLoading ? 'loading' : ''}`} disabled={isLoading}>
+                        {isLoading ? 'Resetting...' : <><KeyRound size={16} className="btn-icon" /> Reset Password</>}
+                    </button>
+                </form>
+            )}
+
+            <button type="button" className="btn-back-link" onClick={() => {
+                if (step > 1 && !success) {
+                    setStep(step - 1);
+                    setError(null);
+                } else {
+                    onBack();
+                }
+            }}>
+                <ArrowLeft size={14} /> {step > 1 && !success ? 'Back' : 'Back to Sign In'}
             </button>
         </>
     );
@@ -371,23 +373,9 @@ function ResetPasswordView({ token, onBack }) {
 //  MAIN AUTH COMPONENT
 // ══════════════════════════════════════════
 export function Auth() {
-    const location = useLocation();
     const navigate = useNavigate();
 
-    // Detect view from URL: ?token=xxx → 'reset', else 'login'
-    const [view, setView] = useState(() => {
-        const params = new URLSearchParams(location.search);
-        return params.get('token') ? 'reset' : 'login';
-    });
-
-    // Pull reset token from URL
-    const resetToken = new URLSearchParams(location.search).get('token') || '';
-
-    // Re-sync view if user navigates to /auth?token=xxx after load
-    useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        if (params.get('token')) setView('reset');
-    }, [location.search]);
+    const [view, setView] = useState('login');
 
     // ── Login / Register state ──
     const [isLogin, setIsLogin] = useState(true);
@@ -403,7 +391,7 @@ export function Auth() {
     const [lockedUntil, setLockedUntil] = useState(null);
     const [touched, setTouched] = useState({});
 
-    const { login, register, serverReady, serverWaking } = useAuth();
+    const { login, register, serverWaking, serverError, retryConnection } = useAuth();
 
     const validateField = useCallback((name, value, pwd) => {
         switch (name) {
@@ -421,10 +409,11 @@ export function Auth() {
                 if (!value) return 'Phone number is required.';
                 if (!RULES.phone.pattern.test(value.replace(/\s|-/g, ''))) return 'Enter a valid phone number (10–15 digits).';
                 return '';
-            case 'password':
+            case 'password': {
                 if (!value) return 'Password is required.';
                 const issues = getPasswordIssues(value);
                 return issues.length ? issues[0] : '';
+            }
             case 'confirmPassword':
                 if (!value) return 'Please confirm your password.';
                 if (value !== (pwd ?? formData.password)) return 'Passwords do not match.';
@@ -475,10 +464,15 @@ export function Auth() {
         e.preventDefault();
         setError(null);
 
-        if (lockedUntil && Date.now() < lockedUntil) {
-            const secs = Math.ceil((lockedUntil - Date.now()) / 1000);
-            setError(`Too many failed attempts. Try again in ${secs}s.`);
-            return;
+        if (lockedUntil) {
+            if (Date.now() >= lockedUntil) {
+                setLockedUntil(null);
+                setAttempts(0);
+            } else {
+                const secs = Math.ceil((lockedUntil - Date.now()) / 1000);
+                setError(`Too many failed attempts. Try again in ${secs}s.`);
+                return;
+            }
         }
 
         const errs = validateAll(formData);
@@ -490,33 +484,43 @@ export function Auth() {
         if (Object.values(errs).some(v => v)) return;
 
         setIsLoading(true);
-        try {
-            const result = isLogin
-                ? await login(formData.email, formData.password)
-                : await register(formData);
+        const result = isLogin
+            ? await login(formData.email, formData.password)
+            : await register(formData);
 
-            if (result.success) {
-                setAttempts(0);
-                navigate(result.user.role === 'admin' ? '/admin' : '/');
-            } else {
-                throw new Error(result.error || 'Authentication failed. Please try again.');
-            }
-        } catch (err) {
-            const next = attempts + 1;
-            setAttempts(next);
-            if (isLogin && next >= MAX_LOGIN_ATTEMPTS) {
-                setLockedUntil(Date.now() + LOCKOUT_MS);
-                setError(`Account locked after ${MAX_LOGIN_ATTEMPTS} failed attempts. Wait 30 seconds.`);
-            } else {
-                const rem = isLogin ? MAX_LOGIN_ATTEMPTS - next : null;
-                setError(
-                    err.message +
-                    (rem != null && rem > 0 && rem <= 3 ? ` (${rem} attempt${rem === 1 ? '' : 's'} left before lockout)` : '')
-                );
-            }
-        } finally {
+        if (result.success) {
+            setAttempts(0);
+            navigate(result.user.role === 'admin' ? '/admin' : '/');
             setIsLoading(false);
+            return;
         }
+
+        if (!result.authFailure) {
+            setError(result.error || 'Authentication failed. Please try again.');
+            setIsLoading(false);
+            return;
+        }
+
+        const next = attempts + 1;
+        setAttempts(next);
+        if (isLogin && next >= MAX_LOGIN_ATTEMPTS) {
+            const unlockAt = Date.now() + LOCKOUT_MS;
+            setLockedUntil(unlockAt);
+            if (typeof window !== 'undefined') {
+                window.setTimeout(() => {
+                    setLockedUntil(current => (current === unlockAt ? null : current));
+                    setAttempts(current => (current >= MAX_LOGIN_ATTEMPTS ? 0 : current));
+                }, LOCKOUT_MS);
+            }
+            setError(`Account locked after ${MAX_LOGIN_ATTEMPTS} failed attempts. Wait 30 seconds.`);
+        } else {
+            const rem = isLogin ? MAX_LOGIN_ATTEMPTS - next : null;
+            setError(
+                (result.error || 'Authentication failed. Please try again.') +
+                (rem != null && rem > 0 && rem <= 3 ? ` (${rem} attempt${rem === 1 ? '' : 's'} left before lockout)` : '')
+            );
+        }
+        setIsLoading(false);
     };
 
     const toggleMode = () => {
@@ -563,11 +567,6 @@ export function Auth() {
                     <ForgotPasswordView onBack={handleBackToLogin} />
                 )}
 
-                {/* ── RESET PASSWORD VIEW ── */}
-                {view === 'reset' && (
-                    <ResetPasswordView token={resetToken} onBack={handleBackToLogin} />
-                )}
-
                 {/* ── LOGIN / REGISTER VIEW ── */}
                 {view === 'login' && (
                     <>
@@ -580,14 +579,32 @@ export function Auth() {
                             </p>
                         </div>
 
-                        {/* Server warm-up banner (Render cold start) */}
-                        {serverWaking && (
+                        {/* Server warm-up / error banner */}
+                        {serverError && (
+                            <div className="server-waking-banner" style={{ borderColor: '#ef4444', background: 'rgba(239,68,68,0.10)' }}>
+                                <span style={{ fontSize: '1.3rem' }}>⚠️</span>
+                                <span>
+                                    <strong style={{ color: '#ef4444' }}>Cannot reach backend</strong>
+                                    <br />
+                                    <small>
+                                        {import.meta.env.DEV
+                                            ? 'Make sure the FastAPI server is running on port 8000.'
+                                            : 'The server may be starting up. This can take up to 2 minutes on free hosting. Click Retry.'}
+                                    </small>
+                                </span>
+                                <button type="button" onClick={retryConnection}
+                                    style={{ marginLeft: 'auto', padding: '0.3rem 0.8rem', fontSize: '0.8rem', borderRadius: '6px', border: '1px solid #ef4444', color: '#ef4444', background: 'transparent', cursor: 'pointer' }}>
+                                    Retry
+                                </button>
+                            </div>
+                        )}
+                        {serverWaking && !serverError && (
                             <div className="server-waking-banner">
                                 <span className="waking-spinner" />
                                 <span>
                                     <strong>Server is waking up…</strong>
                                     <br />
-                                    <small>Free-tier backend takes ~30s on first load. Please wait.</small>
+                                    <small>The backend is waking in the background. You can still try signing in.</small>
                                 </span>
                             </div>
                         )}
@@ -716,7 +733,7 @@ export function Auth() {
                             <button
                                 type="submit"
                                 className={`btn-primary w-full ${isLoading ? 'loading' : ''}`}
-                                disabled={isLoading || Boolean(lockedUntil && Date.now() < lockedUntil) || serverWaking || !serverReady}
+                                disabled={isLoading || Boolean(lockedUntil)}
                                 title={serverWaking ? 'Waiting for server to wake up…' : ''}
                             >
                                 {isLoading ? 'Processing...' : (

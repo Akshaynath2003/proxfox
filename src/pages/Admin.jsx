@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiUrl, authHeader } from '../utils/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { Users, Shield, Settings, Activity } from 'lucide-react';
 import { Card } from '../components/ui/Card';
 import './Admin.css';

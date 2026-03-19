@@ -187,24 +187,19 @@ def forgot_password(request):
         db = get_db()
         user = db.users.find_one({'email': email})
         if not user:
-            return _json({'message': 'If that email exists, a reset link has been sent.'})
+            return _json({'message': 'If that email exists, an OTP has been generated.'})
 
-        token = secrets.token_urlsafe(32)
+        import random
+        otp = str(random.randint(100000, 999999))
         db.password_reset_tokens.delete_many({'email': email})
         db.password_reset_tokens.insert_one({
-            'email': email, 'token': token,
+            'email': email, 'token': otp,
             'expires_at': datetime.utcnow() + timedelta(hours=1),
             'created_at': datetime.utcnow(),
         })
 
-        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
-        send_mail(
-            subject='ProxFox — Reset Your Password',
-            message=f"Click to reset: {frontend_url}/auth?token={token}\nValid for 1 hour.",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email], fail_silently=False,
-        )
-        return _json({'message': 'If that email exists, a reset link has been sent.'})
+        # Return OTP in response so frontend can display it for demonstration
+        return _json({'message': 'OTP generated successfully.', 'otp': otp})
     except Exception as e:
         print(f"Forgot password error: {e}")
         return _err('Failed to send reset email. Please try again later.', 500)
@@ -217,15 +212,16 @@ def reset_password(request):
         return _err('Method not allowed', 405)
     try:
         data = _parse_body(request)
+        email = data.get('email', '').strip().lower()
         token = data.get('token', '').strip()
         new_password = data.get('password', '')
-        if not token or not new_password:
-            return _err('Token and new password are required')
+        if not email or not token or not new_password:
+            return _err('Email, OTP, and new password are required')
 
         db = get_db()
-        record = db.password_reset_tokens.find_one({'token': token})
+        record = db.password_reset_tokens.find_one({'email': email, 'token': token})
         if not record:
-            return _err('Reset link is invalid or expired.')
+            return _err('OTP is invalid or expired.')
         if datetime.utcnow() > record['expires_at']:
             db.password_reset_tokens.delete_one({'token': token})
             return _err('Reset link has expired. Please request a new one.')
@@ -463,7 +459,10 @@ def parse_expense(request):
 
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        try:
+            model = genai.GenerativeModel('gemini-2.5-flash')
+        except Exception:
+            model = genai.GenerativeModel('gemini-pro')
 
         today = datetime.utcnow().strftime('%Y-%m-%d')
         prompt = f"""Extract financial transaction details from the following text.
@@ -568,7 +567,10 @@ RULES:
 
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        try:
+            model = genai.GenerativeModel('gemini-2.5-flash')
+        except Exception:
+            model = genai.GenerativeModel('gemini-pro')
 
         # Build conversation with history
         conversation = [system_prompt + "\n\nUser: " + message]

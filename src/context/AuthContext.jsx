@@ -1,64 +1,84 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { AuthContext } from './auth-context';
+import { apiUrl, fetchJson } from '../utils/api';
 
-const AuthContext = createContext(null);
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
-// Ping /api/health until the server responds or timeout (ms) is reached
 async function warmUpServer(timeout = 60000) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/health`, { cache: 'no-store' });
+            const res = await fetch(apiUrl('/api/health'), { cache: 'no-store' });
             if (res.ok) return true;
-        } catch (_) {
-            // server still cold — keep retrying
+        } catch {
+            // Server still cold; keep retrying in the background.
         }
         await new Promise(r => setTimeout(r, 3000));
     }
-    return false; // timed out
+    return false;
 }
 
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(() => {
+        if (typeof window === 'undefined') return null;
+        try {
+            const storedUser = localStorage.getItem('proxfox_user');
+            return storedUser ? JSON.parse(storedUser) : null;
+        } catch {
+            return null;
+        }
+    });
     const [serverReady, setServerReady] = useState(false);
     const [serverWaking, setServerWaking] = useState(false);
+    const [serverError, setServerError] = useState(false);
+    const loading = false;
+
+    const runWarmUp = async (cancelled = { current: false }) => {
+        setServerError(false);
+
+        const quickCheck = await Promise.race([
+            warmUpServer(1500),
+            new Promise(r => setTimeout(() => r(false), 1500)),
+        ]);
+        if (cancelled.current) return;
+
+        if (quickCheck) {
+            setServerReady(true);
+            setServerWaking(false);
+            return;
+        }
+
+        setServerWaking(true);
+        const ready = await warmUpServer(120000);
+        if (!cancelled.current) {
+            setServerReady(ready);
+            setServerWaking(false);
+            if (!ready) setServerError(true);
+        }
+    };
 
     useEffect(() => {
-        // Restore session from localStorage
-        const storedUser = localStorage.getItem('proxfox_user');
-        if (storedUser) setUser(JSON.parse(storedUser));
-        setLoading(false);
-
-        // Pre-warm the backend immediately
-        let cancelled = false;
-        (async () => {
-            // Give it 1.5s — if not ready, show the waking banner
-            const quickCheck = await Promise.race([
-                warmUpServer(1500),
-                new Promise(r => setTimeout(() => r(false), 1500)),
-            ]);
-            if (cancelled) return;
-            if (quickCheck) {
-                setServerReady(true);
-                return;
-            }
-            // Still cold — show banner and keep retrying
-            setServerWaking(true);
-            const ready = await warmUpServer(60000);
-            if (!cancelled) {
-                setServerReady(ready);
-                setServerWaking(false);
-            }
-        })();
-
-        return () => { cancelled = true; };
+        const cancelled = { current: false };
+        runWarmUp(cancelled);
+        return () => { cancelled.current = true; };
     }, []);
 
+    const retryConnection = () => {
+        setServerError(false);
+        setServerWaking(true);
+        setServerReady(false);
+        runWarmUp();
+    };
+
+    const persistUser = (data) => {
+        setUser(data);
+        localStorage.setItem('proxfox_user', JSON.stringify(data));
+        setServerReady(true);
+        setServerWaking(false);
+        setServerError(false);
+    };
 
     const login = async (email, password) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+            const data = await fetchJson('/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -66,28 +86,26 @@ export function AuthProvider({ children }) {
                 body: JSON.stringify({ email, password }),
             });
 
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Login failed');
-                }
-                setUser(data);
-                localStorage.setItem('proxfox_user', JSON.stringify(data));
-                return { success: true, user: data };
-            } else {
-                const text = await response.text();
-                throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}...`);
-            }
+            persistUser(data);
+            return { success: true, user: data };
         } catch (error) {
             console.error('Login error:', error);
-            return { success: false, error: error.message };
+            if (error.retryable) {
+                setServerWaking(true);
+            }
+            return {
+                success: false,
+                error: error.message || 'Login failed.',
+                status: error.status,
+                retryable: Boolean(error.retryable),
+                authFailure: [400, 401, 403].includes(error.status),
+            };
         }
     };
 
     const register = async (userData) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+            const data = await fetchJson('/api/auth/register', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -95,22 +113,20 @@ export function AuthProvider({ children }) {
                 body: JSON.stringify(userData),
             });
 
-            const contentType = response.headers.get("content-type");
-            if (contentType && contentType.indexOf("application/json") !== -1) {
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Registration failed');
-                }
-                setUser(data);
-                localStorage.setItem('proxfox_user', JSON.stringify(data));
-                return { success: true, user: data };
-            } else {
-                const text = await response.text();
-                throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}...`);
-            }
+            persistUser(data);
+            return { success: true, user: data };
         } catch (error) {
             console.error('Registration error:', error);
-            return { success: false, error: error.message };
+            if (error.retryable) {
+                setServerWaking(true);
+            }
+            return {
+                success: false,
+                error: error.message || 'Registration failed.',
+                status: error.status,
+                retryable: Boolean(error.retryable),
+                authFailure: false,
+            };
         }
     };
 
@@ -128,6 +144,8 @@ export function AuthProvider({ children }) {
         isAuthenticated: !!user,
         serverReady,
         serverWaking,
+        serverError,
+        retryConnection,
     };
 
     return (
@@ -135,12 +153,4 @@ export function AuthProvider({ children }) {
             {!loading && children}
         </AuthContext.Provider>
     );
-}
-
-export function useAuth() {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
 }

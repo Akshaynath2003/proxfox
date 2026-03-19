@@ -20,10 +20,20 @@ export function Analytics() {
         const fetchData = async () => {
             setLoading(true);
             try {
+                const headers = authHeader();
+                const dashboardRes = await fetch(apiUrl(`/api/finance/dashboard?range=${range}`), { headers });
+                if (dashboardRes.ok) {
+                    const payload = await dashboardRes.json();
+                    setChartData(payload.chartData || []);
+                    setCategoryData(payload.categoryData || []);
+                    setSummary(payload.summary || { totalIncome: 0, totalExpense: 0, balance: 0 });
+                    return;
+                }
+
                 const [chartRes, catRes, sumRes] = await Promise.all([
-                    fetch(apiUrl(`/api/finance/chart-data?range=${range}`), { headers: authHeader() }),
-                    fetch(apiUrl('/api/finance/category-breakdown'), { headers: authHeader() }),
-                    fetch(apiUrl('/api/finance/summary'), { headers: authHeader() }),
+                    fetch(apiUrl(`/api/finance/chart-data?range=${range}`), { headers }),
+                    fetch(apiUrl('/api/finance/category-breakdown'), { headers }),
+                    fetch(apiUrl('/api/finance/summary'), { headers }),
                 ]);
                 if (chartRes.ok) setChartData(await chartRes.json());
                 if (catRes.ok) setCategoryData(await catRes.json());

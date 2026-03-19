@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import { DashboardLayout } from './layout/DashboardLayout';
+import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './context/useAuth';
+import { DashboardLayout } from './context/layout/DashboardLayout';
 import { Dashboard } from './pages/Dashboard';
 import { AIAdvisor } from './pages/AIAdvisor';
 import { Transactions } from './pages/Transactions';

@@ -16,10 +16,20 @@ export function Dashboard() {
     useEffect(() => {
         const fetchAll = async () => {
             try {
+                const headers = authHeader();
+                const dashboardRes = await fetch(apiUrl('/api/finance/dashboard?range=week'), { headers });
+                if (dashboardRes.ok) {
+                    const payload = await dashboardRes.json();
+                    setSummary(payload.summary || { totalIncome: 0, totalExpense: 0, totalInvestment: 0, balance: 0 });
+                    setChartData(payload.chartData || []);
+                    setCategoryData(payload.categoryData || []);
+                    return;
+                }
+
                 const [sumRes, chartRes, catRes] = await Promise.all([
-                    fetch(apiUrl('/api/finance/summary'), { headers: authHeader() }),
-                    fetch(apiUrl('/api/finance/chart-data?range=week'), { headers: authHeader() }),
-                    fetch(apiUrl('/api/finance/category-breakdown'), { headers: authHeader() }),
+                    fetch(apiUrl('/api/finance/summary'), { headers }),
+                    fetch(apiUrl('/api/finance/chart-data?range=week'), { headers }),
+                    fetch(apiUrl('/api/finance/category-breakdown'), { headers }),
                 ]);
                 if (sumRes.ok) setSummary(await sumRes.json());
                 if (chartRes.ok) setChartData(await chartRes.json());
